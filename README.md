@@ -1,8 +1,8 @@
-# Joomha
+# joomha-CLI
 
 **AI-powered CLI for understanding any codebase through conversation.**
 
-Joomha adalah tool CLI berbasis Python yang memungkinkan siapa pun memahami repositori kode asing hanya dengan bertanya dalam bahasa natural. Dibangun di atas arsitektur RAG (Retrieval-Augmented Generation) dengan dua mesin retrieval yang bisa dibandingkan: **Vector Retrieval** dan **Graph Retrieval**.
+joomha-CLI adalah tool CLI berbasis Python yang memungkinkan siapa pun memahami repositori kode asing hanya dengan bertanya dalam bahasa natural. Dibangun di atas arsitektur RAG (Retrieval-Augmented Generation) dengan dua mesin retrieval yang bisa dibandingkan: **Vector Retrieval** dan **Graph Retrieval**.
 
 ---
 
@@ -22,22 +22,22 @@ Joomha adalah tool CLI berbasis Python yang memungkinkan siapa pun memahami repo
 ### Dari Source (Development)
 
 ```bash
-git clone [https://github.com/username/joomha.git](http://github.com/joomha/joomha-CLI.git
-cd joomha
+git clone https://github.com/username/joomha-CLI.git](https://github.com/joomha/joomha-CLI.git
+cd joomha-CLI
 pip install -e .
 ```
 
 ### Dari PyPI
 
 ```bash
-pip install joomha
+pip install joomha-CLI
 ```
 
 ---
 
 ##  Konfigurasi
 
-Joomha membutuhkan API key untuk LLM. Pilih salah satu provider:
+joomha-CLI membutuhkan API key untuk LLM. Pilih salah satu provider:
 
 ### Via Environment Variable (Direkomendasikan)
 
@@ -67,10 +67,10 @@ joomha config show
 
 ```bash
 cd /path/to/any/git/repo
-joomha
+joomh
 ```
 
-Saat pertama kali dijalankan, Joomha akan otomatis:
+Saat pertama kali dijalankan, joomha-CLI akan otomatis:
 1. Parsing AST semua file Python
 2. Menganalisis riwayat Git (co-changes, hotspots)
 3. Membangun vector embeddings
@@ -92,7 +92,7 @@ Saat pertama kali dijalankan, Joomha akan otomatis:
 ```
 [graph] ❯ Bagaimana cara kerja sistem autentikasi?
 
-╭──── Joomha [graph] ────╮
+╭──── joomha-CLI [graph] ────╮
 │                         │
 │  Sistem autentikasi...  │
 │                         │
@@ -109,24 +109,6 @@ Saat pertama kali dijalankan, Joomha akan otomatis:
 ```bash
 joomha --reindex
 ```
-
----
-
-##  Evaluasi Riset
-
-Joomha menyertakan evaluator untuk riset perbandingan retrieval:
-
-1. Edit `test_questions.json` dengan 30 pertanyaan + ground truth
-2. Jalankan evaluator:
-
-```bash
-python evaluate.py
-```
-
-3. Hasil tersimpan di `hasil_evaluasi.csv` dengan metrik:
-   - **Hit Rate** — Apakah file relevan ada di konteks?
-   - **MRR** — Posisi file relevan pertama
-   - **Latency** — Waktu total per query
 
 ---
 
@@ -154,7 +136,7 @@ Query ──┬── VectorRetriever ── LanceDB cosine search ── Top-5 
 ##  Struktur Proyek
 
 ```
-joomha/
+
 ├── joomha/
 │   ├── cli.py              # Entry point + REPL
 │   ├── config.py           # API key management
