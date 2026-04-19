@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Joomha
 
 **AI-powered CLI for understanding any codebase through conversation.**
@@ -20,11 +21,37 @@ Dengan **Tree-sitter** memahami multi-bahasa: **Python, JavaScript (.js, .jsx), 
 ---
 
 ## Instalasi
+=======
+# joomha-CLI
+
+**AI-powered CLI for understanding any codebase through conversation.**
+
+joomha-CLI adalah tool CLI berbasis Python yang memungkinkan siapa pun memahami repositori kode asing hanya dengan bertanya dalam bahasa natural. Dibangun di atas arsitektur RAG (Retrieval-Augmented Generation) dengan dua mesin retrieval yang bisa dibandingkan: **Vector Retrieval** dan **Graph Retrieval**.
+
+---
+
+##  Fitur Utama
+
+-  **Vector Retrieval** — Cosine similarity search menggunakan `all-MiniLM-L6-v2` embeddings
+-  **Graph Retrieval** — Traversal relasional via AST parsing + Git co-change analysis
+-  **Compare Mode** — Jalankan kedua retriever sekaligus dan bandingkan hasilnya
+-  **Auto Fallback** — Graph → Vector secara otomatis jika tidak ada node yang cocok
+-  **Rich TUI** — Banner, panel berwarna, spinner, tabel — semua di terminal
+-  **Research-ready** — Evaluator bawaan untuk riset perbandingan retrieval
+
+---
+
+##  Instalasi
+>>>>>>> 4e1c0a63a8a67afc61c5dcbba64f9560357a0971
 
 ### Dari Source (Development)
 
 ```bash
+<<<<<<< HEAD
 git clone https://github.com/joomha/joomha-CLI.git
+=======
+git clone https://github.com/username/joomha-CLI.git](https://github.com/joomha/joomha-CLI.git
+>>>>>>> 4e1c0a63a8a67afc61c5dcbba64f9560357a0971
 cd joomha-CLI
 pip install -e .
 ```
@@ -32,14 +59,18 @@ pip install -e .
 ### Dari PyPI
 
 ```bash
-pip install joomha
+pip install joomha-CLI
 ```
 
 ---
 
+<<<<<<< HEAD
 ## Konfigurasi
+=======
+##  Konfigurasi
+>>>>>>> 4e1c0a63a8a67afc61c5dcbba64f9560357a0971
 
-Joomha membutuhkan API key untuk LLM. Pilih salah satu provider:
+joomha-CLI membutuhkan API key untuk LLM. Pilih salah satu provider:
 
 ### Via Environment Variable (Direkomendasikan)
 
@@ -63,17 +94,25 @@ joomha config show
 
 ---
 
+<<<<<<< HEAD
 ## Penggunaan
+=======
+##  Penggunaan
+>>>>>>> 4e1c0a63a8a67afc61c5dcbba64f9560357a0971
 
 ### Memulai
 
 ```bash
 cd /path/to/any/git/repo
-joomha
+joomh
 ```
 
+<<<<<<< HEAD
 Saat pertama kali dijalankan, Joomha akan otomatis:
 
+=======
+Saat pertama kali dijalankan, joomha-CLI akan otomatis:
+>>>>>>> 4e1c0a63a8a67afc61c5dcbba64f9560357a0971
 1. Parsing AST semua file Python
 2. Menganalisis riwayat Git (co-changes, hotspots)
 3. Membangun vector embeddings
@@ -95,7 +134,7 @@ Saat pertama kali dijalankan, Joomha akan otomatis:
 ```
 [graph] ❯ Bagaimana cara kerja sistem autentikasi?
 
-╭──── Joomha [graph] ────╮
+╭──── joomha-CLI [graph] ────╮
 │                         │
 │  Sistem autentikasi...  │
 │                         │
@@ -115,7 +154,11 @@ joomha --reindex
 
 ---
 
+<<<<<<< HEAD
 ## Arsitektur
+=======
+##  Arsitektur
+>>>>>>> 4e1c0a63a8a67afc61c5dcbba64f9560357a0971
 
 ```
 Query ──┬── VectorRetriever ── LanceDB cosine search ── Top-5 chunks
@@ -136,10 +179,17 @@ Query ──┬── VectorRetriever ── LanceDB cosine search ── Top-5 
 
 ---
 
+<<<<<<< HEAD
 ## Struktur Proyek
 
 ```text
 joomha/
+=======
+##  Struktur Proyek
+
+```
+
+>>>>>>> 4e1c0a63a8a67afc61c5dcbba64f9560357a0971
 ├── joomha/
 │   ├── cli.py              # Entry point + REPL
 │   ├── config.py           # API key management
@@ -170,7 +220,11 @@ joomha/
 
 ---
 
+<<<<<<< HEAD
 ## Stack Teknologi
+=======
+##  Stack Teknologi
+>>>>>>> 4e1c0a63a8a67afc61c5dcbba64f9560357a0971
 
 | Layer | Library |
 |-------|---------|
@@ -183,3 +237,7 @@ joomha/
 | LLM | google-generativeai (`gemini-flash-latest`) / openai / anthropic |
 
 ---
+<<<<<<< HEAD
+=======
+
+>>>>>>> 4e1c0a63a8a67afc61c5dcbba64f9560357a0971
