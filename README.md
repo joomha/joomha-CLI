@@ -201,10 +201,4 @@ joomha/
 
 ---
 
-## Lisensi
 
-MIT License — lihat [LICENSE](LICENSE) untuk detail.
-
----
-
-*Joomha v1.0 — Bangun dengan Python, untuk memahami kode tanpa harus membacanya baris per baris.*
