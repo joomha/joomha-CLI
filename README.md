@@ -1,4 +1,4 @@
-# Joomha 🧠
+# Joomha
 
 **AI-powered CLI for understanding any codebase through conversation.**
 
@@ -6,18 +6,18 @@ Joomha adalah tool CLI berbasis Python yang memungkinkan siapa pun memahami repo
 
 ---
 
-## ✨ Fitur Utama
+##  Fitur Utama
 
-- 🔍 **Vector Retrieval** — Cosine similarity search menggunakan `all-MiniLM-L6-v2` embeddings
-- 🕸️ **Graph Retrieval** — Traversal relasional via AST parsing + Git co-change analysis
-- ⚖️ **Compare Mode** — Jalankan kedua retriever sekaligus dan bandingkan hasilnya
-- 🔄 **Auto Fallback** — Graph → Vector secara otomatis jika tidak ada node yang cocok
-- 🎨 **Rich TUI** — Banner, panel berwarna, spinner, tabel — semua di terminal
-- 📊 **Research-ready** — Evaluator bawaan untuk riset perbandingan retrieval
+-  **Vector Retrieval** — Cosine similarity search menggunakan `all-MiniLM-L6-v2` embeddings
+-  **Graph Retrieval** — Traversal relasional via AST parsing + Git co-change analysis
+-  **Compare Mode** — Jalankan kedua retriever sekaligus dan bandingkan hasilnya
+-  **Auto Fallback** — Graph → Vector secara otomatis jika tidak ada node yang cocok
+-  **Rich TUI** — Banner, panel berwarna, spinner, tabel — semua di terminal
+-  **Research-ready** — Evaluator bawaan untuk riset perbandingan retrieval
 
 ---
 
-## 🚀 Instalasi
+##  Instalasi
 
 ### Dari Source (Development)
 
@@ -35,7 +35,7 @@ pip install joomha
 
 ---
 
-## ⚙️ Konfigurasi
+##  Konfigurasi
 
 Joomha membutuhkan API key untuk LLM. Pilih salah satu provider:
 
@@ -61,7 +61,7 @@ joomha config show
 
 ---
 
-## 📖 Penggunaan
+##  Penggunaan
 
 ### Memulai
 
@@ -112,7 +112,7 @@ joomha --reindex
 
 ---
 
-## 🔬 Evaluasi Riset
+##  Evaluasi Riset
 
 Joomha menyertakan evaluator untuk riset perbandingan retrieval:
 
@@ -130,7 +130,7 @@ python evaluate.py
 
 ---
 
-## 🏗️ Arsitektur
+##  Arsitektur
 
 ```
 Query ──┬── VectorRetriever ── LanceDB cosine search ── Top-5 chunks
@@ -151,7 +151,7 @@ Query ──┬── VectorRetriever ── LanceDB cosine search ── Top-5 
 
 ---
 
-## 📁 Struktur Proyek
+##  Struktur Proyek
 
 ```
 joomha/
@@ -180,7 +180,7 @@ joomha/
 
 ---
 
-## 🛠️ Stack Teknologi
+##  Stack Teknologi
 
 | Layer | Library |
 |-------|---------|
@@ -194,7 +194,6 @@ joomha/
 
 ---
 
-## 📄 Lisensi
 
 MIT License — lihat [LICENSE](LICENSE) untuk detail.
 
