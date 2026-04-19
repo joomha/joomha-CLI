@@ -1,0 +1,17 @@
+[
+  {
+    "query": "Bagaimana cara kerja sistem autentikasi?",
+    "ground_truth": "Sistem autentikasi menggunakan JWT token untuk validasi user.",
+    "relevant_files": ["src/auth/handler.py", "src/utils/jwt.py"]
+  },
+  {
+    "query": "Di mana koneksi database diinisialisasi?",
+    "ground_truth": "Koneksi database diinisialisasi di modul db.py menggunakan SQLAlchemy.",
+    "relevant_files": ["src/db.py", "src/config.py"]
+  },
+  {
+    "query": "Fungsi apa yang menangani routing API?",
+    "ground_truth": "Routing API ditangani oleh fungsi-fungsi di modul routes.",
+    "relevant_files": ["src/routes/api.py", "src/routes/__init__.py"]
+  }
+]
