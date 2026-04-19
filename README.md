@@ -1,29 +1,31 @@
-# Joomha 🧠
+# Joomha
 
 **AI-powered CLI for understanding any codebase through conversation.**
 
-Joomha adalah tool CLI berbasis Python yang memungkinkan siapa pun memahami repositori kode asing hanya dengan bertanya dalam bahasa natural. Dibangun di atas arsitektur RAG (Retrieval-Augmented Generation) dengan dua mesin retrieval yang bisa dibandingkan: **Vector Retrieval** dan **Graph Retrieval**.
+Joomha adalah tool AI CLI yang memungkinkan memahami repositori kode asing hanya dengan bertanya dalam bahasa natural. Dibangun di atas arsitektur RAG (Retrieval-Augmented Generation) dengan dua mesin retrieval yang bisa dibandingkan secara paralel: **Vector Retrieval** dan **Graph Retrieval**.
+
+Dengan **Tree-sitter** memahami multi-bahasa: **Python, JavaScript (.js, .jsx), dan TypeScript (.ts, .tsx)**.
 
 ---
 
-## ✨ Fitur Utama
+## Fitur Utama
 
-- 🔍 **Vector Retrieval** — Cosine similarity search menggunakan `all-MiniLM-L6-v2` embeddings
-- 🕸️ **Graph Retrieval** — Traversal relasional via AST parsing + Git co-change analysis
-- ⚖️ **Compare Mode** — Jalankan kedua retriever sekaligus dan bandingkan hasilnya
-- 🔄 **Auto Fallback** — Graph → Vector secara otomatis jika tidak ada node yang cocok
-- 🎨 **Rich TUI** — Banner, panel berwarna, spinner, tabel — semua di terminal
-- 📊 **Research-ready** — Evaluator bawaan untuk riset perbandingan retrieval
+- **Vector Retrieval** — Cosine similarity search menggunakan `all-MiniLM-L6-v2` embeddings
+- **Graph Retrieval** — Traversal relasional via AST parsing + Git co-change analysis
+- **Compare Mode** — Jalankan kedua retriever sekaligus dan bandingkan hasilnya
+- **Auto Fallback** — Graph → Vector secara otomatis jika tidak ada node yang cocok
+- **Rich TUI** — Banner, panel berwarna, spinner, tabel — semua di terminal
+- **Research-ready** — Evaluator bawaan untuk riset perbandingan retrieval
 
 ---
 
-## 🚀 Instalasi
+## Instalasi
 
 ### Dari Source (Development)
 
 ```bash
-git clone https://github.com/username/joomha.git
-cd joomha
+git clone https://github.com/joomha/joomha-CLI.git
+cd joomha-CLI
 pip install -e .
 ```
 
@@ -35,7 +37,7 @@ pip install joomha
 
 ---
 
-## ⚙️ Konfigurasi
+## Konfigurasi
 
 Joomha membutuhkan API key untuk LLM. Pilih salah satu provider:
 
@@ -61,7 +63,7 @@ joomha config show
 
 ---
 
-## 📖 Penggunaan
+## Penggunaan
 
 ### Memulai
 
@@ -71,6 +73,7 @@ joomha
 ```
 
 Saat pertama kali dijalankan, Joomha akan otomatis:
+
 1. Parsing AST semua file Python
 2. Menganalisis riwayat Git (co-changes, hotspots)
 3. Membangun vector embeddings
@@ -112,25 +115,7 @@ joomha --reindex
 
 ---
 
-## 🔬 Evaluasi Riset
-
-Joomha menyertakan evaluator untuk riset perbandingan retrieval:
-
-1. Edit `test_questions.json` dengan 30 pertanyaan + ground truth
-2. Jalankan evaluator:
-
-```bash
-python evaluate.py
-```
-
-3. Hasil tersimpan di `hasil_evaluasi.csv` dengan metrik:
-   - **Hit Rate** — Apakah file relevan ada di konteks?
-   - **MRR** — Posisi file relevan pertama
-   - **Latency** — Waktu total per query
-
----
-
-## 🏗️ Arsitektur
+## Arsitektur
 
 ```
 Query ──┬── VectorRetriever ── LanceDB cosine search ── Top-5 chunks
@@ -151,24 +136,29 @@ Query ──┬── VectorRetriever ── LanceDB cosine search ── Top-5 
 
 ---
 
-## 📁 Struktur Proyek
+## Struktur Proyek
 
-```
+```text
 joomha/
 ├── joomha/
 │   ├── cli.py              # Entry point + REPL
 │   ├── config.py           # API key management
 │   ├── orchestrator.py     # RAG pipeline coordinator
 │   ├── indexer/
-│   │   ├── ast_parser.py   # Python AST → SQLite
+│   │   ├── parsers/        # Multi-language AST Parsers
+│   │   │   ├── base.py
+│   │   │   ├── python_parser.py
+│   │   │   ├── javascript_parser.py  # Tree-sitter powered
+│   │   │   └── typescript_parser.py  # Tree-sitter powered
+│   │   ├── ast_parser.py   # Universal Parser Dispatcher → SQLite
 │   │   ├── git_analyzer.py # Git history → SQLite
-│   │   └── vector_builder.py  # Code → embeddings → LanceDB
+│   │   └── vector_builder.py  # Multi-lang chunking → LanceDB
 │   ├── retriever/
 │   │   ├── vector.py       # Cosine similarity retrieval
 │   │   └── graph.py        # Relational graph retrieval
 │   ├── llm/
 │   │   ├── client.py       # Multi-provider LLM client
-│   │   └── prompt_builder.py  # Identical prompt structure
+│   │   └── prompt_builder.py  # Strict grounding & AI Persona prompt
 │   └── ui/
 │       ├── display.py      # Rich panels & tables
 │       └── input_handler.py   # prompt-toolkit session
@@ -180,24 +170,16 @@ joomha/
 
 ---
 
-## 🛠️ Stack Teknologi
+## Stack Teknologi
 
 | Layer | Library |
 |-------|---------|
 | CLI | typer, rich, prompt-toolkit |
-| AST | ast (stdlib) |
+| AST/Parser | tree-sitter (JS/TS), ast (Python stdlib) |
 | Git | gitpython |
 | Embedding | sentence-transformers (all-MiniLM-L6-v2) |
 | Vector DB | lancedb + pyarrow |
 | Graph DB | sqlite3 (stdlib) |
-| LLM | google-generativeai / openai / anthropic |
+| LLM | google-generativeai (`gemini-flash-latest`) / openai / anthropic |
 
 ---
-
-## 📄 Lisensi
-
-MIT License — lihat [LICENSE](LICENSE) untuk detail.
-
----
-
-*Joomha v1.0 — Bangun dengan Python, untuk memahami kode tanpa harus membacanya baris per baris.* 🚀
