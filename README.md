@@ -22,7 +22,7 @@ Joomha adalah tool CLI berbasis Python yang memungkinkan siapa pun memahami repo
 ### Dari Source (Development)
 
 ```bash
-git clone https://github.com/username/joomha.git
+git clone [https://github.com/username/joomha.git](http://github.com/joomha/joomha-CLI.git
 cd joomha
 pip install -e .
 ```
@@ -194,9 +194,3 @@ joomha/
 
 ---
 
-
-MIT License — lihat [LICENSE](LICENSE) untuk detail.
-
----
-
-*Joomha v1.0 — Bangun dengan Python, untuk memahami kode tanpa harus membacanya baris per baris.* 🚀
