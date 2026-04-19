@@ -1,0 +1,39 @@
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Joomha spesifik
+.joomha/
+
+# Database
+*.db
+*.sqlite3
+*.sqlite
+
+# Packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Archives
+*.zip
+
+# Abaikan semua file markdown diskusi kecuali dokumentasi inti
+*.md
+!README.md
+!arsitektur_sistem.md
