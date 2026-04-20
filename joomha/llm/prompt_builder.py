@@ -79,19 +79,31 @@ def _format_graph_context(results: List[Dict]) -> str:
     return "\n\n".join(parts)
 
 
-def build_prompt(query: str, context_results: List[Dict], mode: str) -> str:
+def build_prompt(
+    query: str,
+    context_results: List[Dict],
+    mode: str,
+    history: str = "",
+) -> str:
     """Build the final prompt sent to the LLM.
 
-    The wrapper structure (SYSTEM_PROMPT + KONTEKS + PERTANYAAN + JAWABAN)
+    The wrapper structure (SYSTEM_PROMPT + HISTORY + KONTEKS + PERTANYAAN + JAWABAN)
     is **identical** for every mode — only the context block changes.
+
+    Bug 6: An optional ``history`` string is inserted before the context to
+    give the LLM awareness of previous conversation turns.
     """
     if mode in ("vector", "vector (fallback)"):
         context_text = _format_vector_context(context_results)
     else:
         context_text = _format_graph_context(context_results)
 
+    # Bug 6: inject conversation history when available
+    history_block = f"\n{history}\n" if history else ""
+
     return (
-        f"{SYSTEM_PROMPT}\n\n"
+        f"{SYSTEM_PROMPT}\n"
+        f"{history_block}\n"
         f"KONTEKS:\n{context_text}\n\n"
         f"PERTANYAAN:\n{query}\n\n"
         f"JAWABAN:"

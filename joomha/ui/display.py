@@ -17,7 +17,7 @@ from rich.table import Table
 from rich.markdown import Markdown
 from rich.text import Text
 
-console = Console(force_terminal=True)
+console = Console()
 
 BANNER = r"""
        ██╗ ██████╗  ██████╗ ███╗   ███╗██╗  ██╗ █████╗
@@ -94,6 +94,8 @@ def show_help() -> None:
     table.add_row("/mode vector", "Gunakan Vector Retrieval (cosine similarity)")
     table.add_row("/mode graph", "Gunakan Graph Retrieval (relasional)")
     table.add_row("/mode compare", "Bandingkan kedua mode sekaligus")
+    table.add_row("/provider", "Ganti provider & model LLM (runtime)")
+    table.add_row("/info", "Tampilkan provider, model, dan mode saat ini")
     table.add_row("/hotspots", "Tampilkan 10 file paling sering diubah")
     table.add_row("/help", "Tampilkan bantuan ini")
     table.add_row("/q, /quit", "Keluar dari Joomha")

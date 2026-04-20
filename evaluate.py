@@ -1,17 +1,28 @@
-"""Batch evaluator for Joomha retrieval comparison (research instrument).
-
-Usage:
-    1. Index a target repo with `joomha` first.
-    2. Fill test_questions.json with 30 question/ground-truth pairs.
-    3. Run: python evaluate.py
-    4. Results are saved to hasil_evaluasi.csv
-"""
-
 import csv
 import json
 import sys
 import time
 from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Bug H: Retry helper with exponential backoff
+# ---------------------------------------------------------------------------
+
+def _retry_generate(llm_client, prompt: str, max_retries: int = 3):
+    """Call llm_client.generate with retries and exponential backoff.
+
+    Returns (answer, latency) or a fallback error tuple after all retries.
+    """
+    for attempt in range(max_retries):
+        answer, latency = llm_client.generate(prompt)
+        if not answer.startswith("[Error dari LLM]"):
+            return answer, latency
+        if attempt < max_retries - 1:
+            wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
+            print(f"    ⚠ Retry {attempt + 1}/{max_retries} setelah {wait}s...")
+            time.sleep(wait)
+    return answer, latency  # return last failure
 
 
 def main() -> None:
@@ -51,7 +62,12 @@ def main() -> None:
     llm_client = LLMClient()
 
     # ------------------------------------------------------------------
-    # Run evaluation: each question × 2 modes
+    # Bug H: inter-call delay to respect API rate limits
+    # ------------------------------------------------------------------
+    API_CALL_DELAY = 1.5  # seconds between consecutive calls
+
+    # ------------------------------------------------------------------
+    # Bug S: evaluate 3 modes: vector, graph, compare
     # ------------------------------------------------------------------
     results: list[dict] = []
 
@@ -62,20 +78,30 @@ def main() -> None:
 
         print(f"[{i}/{len(questions)}] {query[:70]}...")
 
-        for mode in ("vector", "graph"):
+        for mode in ("vector", "graph", "compare"):
             start = time.time()
             actual_mode = mode
 
             if mode == "vector":
                 context = vector_retriever.retrieve(query)
-            else:
+
+            elif mode == "graph":
                 context = graph_retriever.retrieve(query)
                 if not context:
                     context = vector_retriever.retrieve(query)
                     actual_mode = "vector (fallback)"
 
+            else:  # compare
+                # For compare mode: use both contexts concatenated for metrics
+                v_ctx = vector_retriever.retrieve(query)
+                g_ctx = graph_retriever.retrieve(query)
+                if not g_ctx:
+                    g_ctx = v_ctx
+                context = v_ctx + g_ctx  # combined for file-hit metrics
+
             prompt = build_prompt(query, context, actual_mode)
-            answer, llm_latency = llm_client.generate(prompt)
+            answer, llm_latency = _retry_generate(llm_client, prompt)
+
             total_latency = time.time() - start
 
             # ── Metrics ───────────────────────────────────────────────
@@ -102,10 +128,18 @@ def main() -> None:
                 "ground_truth": ground_truth[:200],
             })
 
+            # Bug H: delay between API calls to avoid rate limits
+            time.sleep(API_CALL_DELAY)
+
     # ------------------------------------------------------------------
-    # Write CSV
+    # Bug G: Guard against empty results before writing CSV
     # ------------------------------------------------------------------
     output_file = "hasil_evaluasi.csv"
+
+    if not results:
+        print("\n⚠ Semua API call gagal. Tidak ada hasil untuk disimpan.")
+        sys.exit(1)
+
     with open(output_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=results[0].keys())
         writer.writeheader()
@@ -118,33 +152,30 @@ def main() -> None:
     print(f">> Evaluasi selesai! Hasil disimpan ke: {output_file}")
     print(f"  Total runs: {len(results)}")
 
-    v_hits = [r["hit_rate"] for r in results if r["mode"] == "vector"]
-    g_hits = [
-        r["hit_rate"]
-        for r in results
-        if r["mode"] in ("graph", "vector (fallback)")
-    ]
-    v_mrr = [r["mrr"] for r in results if r["mode"] == "vector"]
-    g_mrr = [
-        r["mrr"]
-        for r in results
-        if r["mode"] in ("graph", "vector (fallback)")
-    ]
-    v_lat = [r["latency_s"] for r in results if r["mode"] == "vector"]
-    g_lat = [
-        r["latency_s"]
-        for r in results
-        if r["mode"] in ("graph", "vector (fallback)")
-    ]
+    def _summarise(mode_filter: set):
+        hits = [r["hit_rate"] for r in results if r["mode"] in mode_filter]
+        mrrs = [r["mrr"] for r in results if r["mode"] in mode_filter]
+        lats = [r["latency_s"] for r in results if r["mode"] in mode_filter]
+        if hits:
+            avg_hit = sum(hits) / len(hits)
+            avg_mrr = sum(mrrs) / len(mrrs)
+            avg_lat = sum(lats) / len(lats)
+            return avg_hit, avg_mrr, avg_lat
+        return None
 
-    if v_hits:
-        print(f"  Vector — Hit Rate: {sum(v_hits)/len(v_hits):.2%}  "
-              f"MRR: {sum(v_mrr)/len(v_mrr):.4f}  "
-              f"Avg Latency: {sum(v_lat)/len(v_lat):.2f}s")
-    if g_hits:
-        print(f"  Graph  — Hit Rate: {sum(g_hits)/len(g_hits):.2%}  "
-              f"MRR: {sum(g_mrr)/len(g_mrr):.4f}  "
-              f"Avg Latency: {sum(g_lat)/len(g_lat):.2f}s")
+    for label, modes in [
+        ("Vector", {"vector"}),
+        ("Graph", {"graph", "vector (fallback)"}),
+        ("Compare", {"compare"}),
+    ]:
+        stats = _summarise(modes)
+        if stats:
+            print(
+                f"  {label:8s} — Hit Rate: {stats[0]:.2%}  "
+                f"MRR: {stats[1]:.4f}  "
+                f"Avg Latency: {stats[2]:.2f}s"
+            )
+
     print(f"{'='*60}")
 
 

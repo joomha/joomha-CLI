@@ -34,7 +34,7 @@ class JavaScriptParser(BaseParser):
             return None  # skip bare specifiers (npm packages)
 
         source_dir = source_file.parent
-        for ext in ("", ".js", ".jsx", ".mjs", "/index.js"):
+        for ext in ("", ".js", ".jsx", ".mjs", ".ts", ".tsx", "/index.js", "/index.ts", "/index.tsx"):
             candidate = (source_dir / (raw_path + ext)).resolve()
             try:
                 if candidate.exists():
