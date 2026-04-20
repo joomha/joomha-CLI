@@ -1,6 +1,6 @@
 # joomha-CLI
 
-**AI-powered CLI for understanding any codebase through conversation.**
+**AI CLI untuk pemahaman code**
 
 joomha-CLI adalah tool AI CLI yang memungkinkan memahami repositori kode asing hanya dengan bertanya dalam bahasa natural. Dibangun di atas arsitektur RAG (Retrieval-Augmented Generation) dengan dua mesin retrieval yang bisa dibandingkan secara paralel: **Vector Retrieval** dan **Graph Retrieval**.
 
@@ -201,10 +201,4 @@ joomha/
 
 ---
 
-## Lisensi
 
-MIT License — lihat [LICENSE](LICENSE) untuk detail.
-
----
-
-*Joomha v1.0 — Bangun dengan Python, untuk memahami kode tanpa harus membacanya baris per baris.*
