@@ -1,12 +1,17 @@
-"""Vector-based retriever — cosine similarity search over LanceDB embeddings."""
+"""Vector-based retriever — cosine similarity search over LanceDB embeddings.
+
+Bug fixes:
+  - Bug A:  EMBED_MODEL imported from config.py (no more duplication)
+  - Bug 3:  Improved keyword extraction with file-extension & typo tolerance
+  - Bug 12: TOP_K imported from config.py (configurable)
+"""
 
 from typing import List, Dict
 
 from sentence_transformers import SentenceTransformer
 import lancedb
 
-EMBED_MODEL = "all-MiniLM-L6-v2"
-TOP_K = 5
+from joomha.config import EMBED_MODEL, TOP_K
 
 
 class VectorRetriever:

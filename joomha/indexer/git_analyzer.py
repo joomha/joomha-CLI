@@ -1,10 +1,15 @@
-"""Git history analyser — commits, co-changes, hotspots, and ownership."""
+"""Git history analyser — commits, co-changes, hotspots, and ownership.
+
+Bug 4 fix: no longer hardcoded to .py — now tracks all SUPPORTED_EXTENSIONS.
+"""
 
 import sqlite3
 from itertools import combinations
 from pathlib import Path
 
 import git
+
+from joomha.indexer.ast_parser import SUPPORTED_EXTENSIONS
 
 
 def analyze_git(repo_path: Path, conn: sqlite3.Connection, progress_callback=None) -> int:
@@ -37,7 +42,7 @@ def analyze_git(repo_path: Path, conn: sqlite3.Connection, progress_callback=Non
             ),
         )
 
-        # Collect changed Python files in this commit
+        # Bug 4: Collect changed files for ALL supported extensions (not just .py)
         changed_files: list[str] = []
         try:
             if commit.parents:
@@ -47,7 +52,7 @@ def analyze_git(repo_path: Path, conn: sqlite3.Connection, progress_callback=Non
 
             for diff in diffs:
                 fp = diff.a_path or diff.b_path
-                if fp and fp.endswith(".py"):
+                if fp and Path(fp).suffix.lower() in SUPPORTED_EXTENSIONS:
                     changed_files.append(fp)
                     cursor.execute(
                         "INSERT INTO file_changes (commit_hash, file_path) "

@@ -70,6 +70,15 @@ CREATE TABLE IF NOT EXISTS ownership (
     changes   INTEGER DEFAULT 1,
     PRIMARY KEY (file_path, author)
 );
+
+-- Bug D: indexes to avoid full table scans in retriever queries
+CREATE INDEX IF NOT EXISTS ix_nodes_name      ON nodes (name);
+CREATE INDEX IF NOT EXISTS ix_nodes_file_path ON nodes (file_path);
+CREATE INDEX IF NOT EXISTS ix_edges_source    ON edges (source_file);
+CREATE INDEX IF NOT EXISTS ix_edges_target    ON edges (target_file);
+CREATE INDEX IF NOT EXISTS ix_cochanges_a     ON co_changes (file_a);
+CREATE INDEX IF NOT EXISTS ix_cochanges_b     ON co_changes (file_b);
+CREATE INDEX IF NOT EXISTS ix_file_changes_fp ON file_changes (file_path);
 """
 
 

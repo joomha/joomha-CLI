@@ -13,6 +13,8 @@ SLASH_COMMANDS = [
     "/mode graph",
     "/mode compare",
     "/hotspots",
+    "/provider",
+    "/info",
     "/help",
     "/q",
     "/quit",

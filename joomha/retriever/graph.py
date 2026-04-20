@@ -1,9 +1,21 @@
-"""Graph-based retriever — relational traversal via SQLite (nodes + edges + co-changes)."""
+"""Graph-based retriever — relational traversal via SQLite (nodes + edges + co-changes).
+
+Bug fixes:
+  - Bug 1:  _find_nodes now also searches by file_path (not just node name)
+  - Bug C:  _get_import_neighbors uses exact match (= file_path) instead of LIKE
+  - Bug E:  Results are ordered by relevance (ORDER BY) instead of undefined order
+  - Bug 3:  Improved keyword extraction: handles file extensions, short names,
+            and common query patterns
+  - Bug M:  Co-change scores normalised to Jaccard-like ratio
+  - Bug 12: TOP_K imported from config.py
+"""
 
 import re
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Set
+
+from joomha.config import TOP_K
 
 
 class GraphRetriever:
@@ -21,26 +33,87 @@ class GraphRetriever:
         return sqlite3.connect(self.db_path)
 
     def _extract_keywords(self, query: str) -> List[str]:
-        """Extract CamelCase, snake_case tokens, and long words from the query."""
-        pattern = r'\b[A-Z][a-zA-Z]+\b|[a-z]+_[a-z_]+\b'
-        keywords = re.findall(pattern, query)
-        # Fallback: any word longer than 4 characters
+        """Extract CamelCase, snake_case tokens, file names, and long words from the query.
+
+        Bug 3 improvements:
+          - Recognises file names with extensions (e.g. vector.py, App.tsx)
+          - Keeps short but meaningful tokens (≥3 chars as fallback)
+          - Strips common filler words
+        """
+        keywords: List[str] = []
+
+        # 1. File names with extensions (e.g. "vector.py", "App.tsx")
+        file_pattern = r'\b[\w.-]+\.(?:py|js|jsx|ts|tsx|mjs|cjs)\b'
+        files_found = re.findall(file_pattern, query, re.IGNORECASE)
+        keywords.extend(files_found)
+
+        # Also add the stem (filename without extension) for node-name matching
+        for f in files_found:
+            stem = Path(f).stem
+            if stem and len(stem) >= 2:
+                keywords.append(stem)
+
+        # 2. CamelCase and snake_case identifiers
+        pattern = r'\b[A-Z][a-zA-Z0-9]+\b|[a-z]+_[a-z_]+\b'
+        keywords.extend(re.findall(pattern, query))
+
+        # 3. Fallback: any word longer than 3 characters (excluding stop words)
+        stop_words = {
+            "yang", "dari", "untuk", "dengan", "pada", "akan", "this",
+            "that", "what", "where", "which", "there", "have", "file",
+            "bagaimana", "jelaskan", "dimana", "fungsi", "kelas",
+            "explain", "describe", "show", "find", "about",
+        }
         if not keywords:
             words = re.findall(r'\b\w+\b', query)
-            keywords = [w for w in words if len(w) > 4]
-        return list(set(keywords))
+            keywords = [w for w in words if len(w) > 3 and w.lower() not in stop_words]
+
+        # Deduplicate while preserving order
+        seen: set = set()
+        unique: List[str] = []
+        for kw in keywords:
+            low = kw.lower()
+            if low not in seen:
+                seen.add(low)
+                unique.append(kw)
+        return unique
 
     def _find_nodes(self, keywords: List[str]) -> List[Dict]:
-        """Find AST nodes whose name matches any keyword."""
+        """Find AST nodes whose name *or file_path* matches any keyword.
+
+        Bug 1:  Also searches file_path (not just node name).
+        Bug E:  Results are ordered deterministically by (file_path, start_line).
+        """
         conn = self._get_conn()
         cursor = conn.cursor()
         nodes: List[Dict] = []
         seen: Set[tuple] = set()
 
         for kw in keywords:
+            # Search by node name
             cursor.execute(
                 "SELECT file_path, node_type, name, start_line, end_line "
-                "FROM nodes WHERE name LIKE ?",
+                "FROM nodes WHERE name LIKE ? "
+                "ORDER BY file_path, start_line",
+                (f"%{kw}%",),
+            )
+            for row in cursor.fetchall():
+                key = (row[0], row[2])
+                if key not in seen:
+                    seen.add(key)
+                    nodes.append({
+                        "file_path":  row[0],
+                        "node_type":  row[1],
+                        "name":       row[2],
+                        "start_line": row[3],
+                        "end_line":   row[4],
+                    })
+
+            # Bug 1: Also search by file_path
+            cursor.execute(
+                "SELECT file_path, node_type, name, start_line, end_line "
+                "FROM nodes WHERE file_path LIKE ? "
+                "ORDER BY start_line",
                 (f"%{kw}%",),
             )
             for row in cursor.fetchall():
@@ -59,21 +132,26 @@ class GraphRetriever:
         return nodes
 
     def _get_import_neighbors(self, file_path: str) -> List[str]:
-        """Get files that import *or are imported by* the given file."""
+        """Get files that import *or are imported by* the given file.
+
+        Bug C: Uses exact match (= file_path) to prevent false positives
+        like 'a.py' matching 'ba.py'.
+        """
         conn = self._get_conn()
         cursor = conn.cursor()
 
+        # Bug C: exact match instead of LIKE partial match
         cursor.execute(
             "SELECT source_file FROM edges "
-            "WHERE target_file LIKE ? AND edge_type='imports'",
-            (f"%{file_path}%",),
+            "WHERE target_file = ? AND edge_type='imports'",
+            (file_path,),
         )
         results = [row[0] for row in cursor.fetchall()]
 
         cursor.execute(
             "SELECT target_file FROM edges "
-            "WHERE source_file LIKE ? AND edge_type='imports'",
-            (f"%{file_path}%",),
+            "WHERE source_file = ? AND edge_type='imports'",
+            (file_path,),
         )
         results.extend(row[0] for row in cursor.fetchall())
 
@@ -81,17 +159,52 @@ class GraphRetriever:
         return list(set(results))
 
     def _get_cochange_neighbors(self, file_path: str) -> List[Dict]:
-        """Get files that frequently change alongside the given file."""
+        """Get files that frequently change alongside the given file.
+
+        Bug M:  Score is normalised using Jaccard-like formula:
+                normalised = co_changes / (changes_a + changes_b - co_changes)
+                Falls back to raw score if hotspot data is missing.
+        Bug C:  Uses exact match instead of LIKE.
+        """
         conn = self._get_conn()
         cursor = conn.cursor()
 
+        # Bug C: exact match
         cursor.execute(
-            "SELECT file_b, score FROM co_changes WHERE file_a LIKE ? "
+            "SELECT file_b, score FROM co_changes WHERE file_a = ? "
             "UNION "
-            "SELECT file_a, score FROM co_changes WHERE file_b LIKE ?",
-            (f"%{file_path}%", f"%{file_path}%"),
+            "SELECT file_a, score FROM co_changes WHERE file_b = ?",
+            (file_path, file_path),
         )
-        results = [{"file": row[0], "score": row[1]} for row in cursor.fetchall()]
+        raw_results = cursor.fetchall()
+
+        # Bug M: Normalise scores using hotspot change_count
+        cursor.execute(
+            "SELECT change_count FROM hotspots WHERE file_path = ?",
+            (file_path,),
+        )
+        row = cursor.fetchone()
+        changes_a = row[0] if row else None
+
+        results: List[Dict] = []
+        for partner_file, raw_score in raw_results:
+            if changes_a is not None:
+                cursor.execute(
+                    "SELECT change_count FROM hotspots WHERE file_path = ?",
+                    (partner_file,),
+                )
+                row_b = cursor.fetchone()
+                changes_b = row_b[0] if row_b else None
+                if changes_b is not None:
+                    denominator = changes_a + changes_b - raw_score
+                    norm_score = round(raw_score / denominator, 4) if denominator > 0 else 0
+                else:
+                    norm_score = raw_score
+            else:
+                norm_score = raw_score
+
+            results.append({"file": partner_file, "score": norm_score})
+
         conn.close()
         return sorted(results, key=lambda x: x["score"], reverse=True)
 
@@ -104,27 +217,73 @@ class GraphRetriever:
         except Exception:
             return ""
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+    def _get_global_metadata(self, query: str) -> str:
+        """Heuristik untuk mendeteksi pertanyaan analitik global dan mengekstrak data dari tabel Git."""
+        q = query.lower()
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        try:
+            # 1. Deteksi query "siapa developer/author paling aktif"
+            # Prioritaskan ini terlebih dahulu agar "developer paling aktif" tidak terperangkap di kondisi ke-2
+            if any(k in q for k in ["developer", "author", "kontributor", "pembuat", "siapa yang", "berkontribusi"]):
+                cursor.execute("SELECT author, sum(changes) as total FROM ownership GROUP BY author ORDER BY total DESC LIMIT 10")
+                rows = cursor.fetchall()
+                if rows:
+                    return "STATISTIK GIT (OWNERSHIP) - Kontributor Paling Aktif:\n" + "\n".join([f"- {r[0]} ({r[1]} total revisi)" for r in rows])
+                    
+            # 2. Deteksi query "file paling sering diubah"
+            if any(k in q for k in ["paling banyak diubah", "paling sering diubah", "di ubah", "hotspot", "sering diganti", "sering diedit", "sering di edit", "file mana"]):
+                cursor.execute("SELECT file_path, change_count FROM hotspots ORDER BY change_count DESC LIMIT 10")
+                rows = cursor.fetchall()
+                if rows:
+                    return "STATISTIK GIT (HOTSPOTS) - 10 File Paling Sering Diubah:\n" + "\n".join([f"- {r[0]} ({r[1]} revisi)" for r in rows])
+                    
+        except sqlite3.OperationalError:
+            pass # Tabel mungkin belum dibuild
+        finally:
+            conn.close()
+            
+        return ""
 
     def retrieve(self, query: str) -> List[Dict]:
         """Retrieve context by graph traversal.
 
         Returns an empty list when no nodes match — the Orchestrator will
         automatically fall back to the VectorRetriever.
+
+        Bug E: Takes top TOP_K nodes (configurable) with deterministic ordering.
         """
-        keywords = self._extract_keywords(query)
-        if not keywords:
-            return []
-
-        nodes = self._find_nodes(keywords)
-        if not nodes:
-            return []
-
-        # Take the top 3 most relevant nodes
-        top_nodes = nodes[:3]
         results: List[Dict] = []
+        
+        # Injeksi metadata global jika query bersinggungan dengan metrik Git
+        meta_text = self._get_global_metadata(query)
+        if meta_text:
+            results.append({
+                "file_path":  "GLOBAL_GIT_STATISTICS",
+                "text":       meta_text,
+                "node_type":  "graph_analytics",
+                "node_name":  "git_history",
+                "start_line": 0,
+                "end_line":   0,
+                "importers":  [],
+                "cochanges":  [],
+                "source":     "graph_metadata",
+            })
+
+        keywords = self._extract_keywords(query)
+        if not keywords and not meta_text:
+            return []
+            
+        nodes = self._find_nodes(keywords)
+        if not nodes and not meta_text:
+            return []
+            
+        if not nodes and meta_text:
+            return results
+
+        # Bug E & 12: Use configurable TOP_K instead of hardcoded 3
+        top_nodes = nodes[:TOP_K]
         seen_files: Set[str] = set()
 
         for node in top_nodes:

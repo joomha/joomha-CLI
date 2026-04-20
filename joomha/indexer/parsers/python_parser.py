@@ -1,4 +1,8 @@
-"""Python parser — extracts AST nodes and import edges using the stdlib `ast` module."""
+"""Python parser — extracts AST nodes and import edges using the stdlib `ast` module.
+
+Bug B fix: relative imports (from .utils import X) now resolve from the
+source file's directory instead of always from the repo root.
+"""
 
 import ast
 from pathlib import Path
@@ -21,19 +25,57 @@ class PythonParser(BaseParser):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _resolve_import(module_name: str, repo_root: Path) -> Optional[str]:
-        """Try to map a dotted module name to a relative file path."""
-        parts = module_name.split(".")
+    def _resolve_import(
+        module_name: str,
+        repo_root: Path,
+        source_file: Optional[Path] = None,
+        level: int = 0,
+    ) -> Optional[str]:
+        """Try to map a dotted module name to a relative file path.
+
+        Args:
+            module_name: The dotted module string (e.g. "utils.helpers").
+            repo_root:   Absolute path to the repo root.
+            source_file: Absolute path to the file containing the import
+                         (needed for relative imports).
+            level:       Number of leading dots (0 = absolute, 1 = ., 2 = ..).
+        """
+        # --- Bug B: handle relative imports ---
+        if level > 0 and source_file is not None:
+            base_dir = source_file.parent
+            # Walk up `level - 1` directories (level=1 means current package)
+            for _ in range(level - 1):
+                base_dir = base_dir.parent
+        else:
+            base_dir = repo_root
+
+        parts = module_name.split(".") if module_name else []
 
         # package/__init__.py
-        candidate = repo_root.joinpath(*parts, "__init__.py")
-        if candidate.exists():
-            return str(candidate.relative_to(repo_root))
+        candidate = base_dir.joinpath(*parts, "__init__.py") if parts else None
+        if candidate and candidate.exists():
+            try:
+                return str(candidate.relative_to(repo_root))
+            except ValueError:
+                pass
 
         # module.py
-        candidate = repo_root.joinpath(*parts).with_suffix(".py")
-        if candidate.exists():
-            return str(candidate.relative_to(repo_root))
+        if parts:
+            candidate = base_dir.joinpath(*parts).with_suffix(".py")
+            if candidate.exists():
+                try:
+                    return str(candidate.relative_to(repo_root))
+                except ValueError:
+                    pass
+
+        # bare relative with no module name (e.g. `from . import foo`)
+        if level > 0 and not module_name:
+            candidate = base_dir / "__init__.py"
+            if candidate.exists():
+                try:
+                    return str(candidate.relative_to(repo_root))
+                except ValueError:
+                    pass
 
         return None
 
@@ -87,7 +129,9 @@ class PythonParser(BaseParser):
                 })
             elif isinstance(node, ast.Import):
                 for alias in node.names:
-                    target = self._resolve_import(alias.name, repo_root)
+                    target = self._resolve_import(
+                        alias.name, repo_root, source_file=file_path, level=0
+                    )
                     if target:
                         edges.append({
                             "source_file": rel_path,
@@ -95,13 +139,16 @@ class PythonParser(BaseParser):
                             "edge_type":   "imports",
                         })
             elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    target = self._resolve_import(node.module, repo_root)
-                    if target:
-                        edges.append({
-                            "source_file": rel_path,
-                            "target_file": target,
-                            "edge_type":   "imports",
-                        })
+                module = node.module or ""
+                level = node.level or 0
+                target = self._resolve_import(
+                    module, repo_root, source_file=file_path, level=level
+                )
+                if target:
+                    edges.append({
+                        "source_file": rel_path,
+                        "target_file": target,
+                        "edge_type":   "imports",
+                    })
 
         return {"nodes": nodes, "edges": edges}

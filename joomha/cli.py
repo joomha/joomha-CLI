@@ -1,7 +1,6 @@
-"""Joomha CLI — entry point with REPL loop, indexing, and slash commands."""
-
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 from pathlib import Path
 from typing import Optional
@@ -14,7 +13,16 @@ from joomha.config import (
     get_api_key,
     set_api_key,
     get_active_provider,
+    set_active_provider,
+    get_active_model,
+    set_active_model,
+    get_all_configured_providers,
+    get_custom_base_url,
+    set_custom_base_url,
     PROVIDER_ENV_KEYS,
+    MODEL_REGISTRY,
+    OPEN_MODEL_PROVIDERS,
+    ensure_joomha_gitignore,
 )
 from joomha.ui.display import (
     show_banner,
@@ -73,6 +81,9 @@ def _run_indexing(
 
     joomha_dir.mkdir(parents=True, exist_ok=True)
 
+    # Bug Q: ensure .gitignore exists inside .joomha/
+    ensure_joomha_gitignore(joomha_dir)
+
     from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
     with Progress(
@@ -123,6 +134,114 @@ def _run_indexing(
     )
 
 
+# ---------------------------------------------------------------------------
+# Provider switching helper (for /provider command)
+# ---------------------------------------------------------------------------
+
+def _show_provider_menu(orchestrator) -> None:
+    """Display an interactive provider/model selector."""
+    from rich.table import Table
+
+    configured = get_all_configured_providers()
+    active_provider = orchestrator.llm_client.provider
+    active_model = orchestrator.llm_client.model_id
+
+    if not configured:
+        show_error("Belum ada provider yang dikonfigurasi.")
+        show_info("Jalankan: joomha config set <provider> <api_key>")
+        return
+
+    # Show current status
+    display_console.print(
+        f"\n[bold cyan]Provider aktif:[/bold cyan] {active_provider} "
+        f"([green]{active_model}[/green])\n"
+    )
+
+    # Show all configured providers with their models
+    table = Table(title="Provider & Model Tersedia", show_lines=True)
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Provider", style="cyan")
+    table.add_column("Model", style="white")
+    table.add_column("Tier", style="dim")
+    table.add_column("Status", width=8)
+
+    idx = 1
+    choices = {}  # idx → (provider, model_id)
+    for provider in configured:
+        models = MODEL_REGISTRY.get(provider, [{"id": "default", "label": "Default", "tier": "—"}])
+        for m in models:
+            is_active = (provider == active_provider and m["id"] == active_model)
+            status = "[green]● aktif[/green]" if is_active else ""
+            table.add_row(
+                str(idx),
+                provider,
+                m["label"],
+                m.get("tier", ""),
+                status,
+            )
+            choices[idx] = (provider, m["id"])
+            idx += 1
+
+    display_console.print(table)
+    display_console.print(
+        "\n[dim]Ketik nomor untuk memilih, ATAU ketik langsung nama model (jika provider mendukung custom ID). ENTER batal:[/dim]"
+    )
+
+
+def _handle_provider_switch(user_input: str, orchestrator) -> bool:
+    """Handle provider selection number input. Returns True if switched."""
+    configured = get_all_configured_providers()
+    choices = {}
+    idx = 1
+    for provider in configured:
+        models = MODEL_REGISTRY.get(provider, [{"id": "default", "label": "Default", "tier": "—"}])
+        for m in models:
+            choices[idx] = (provider, m["id"])
+            idx += 1
+
+    try:
+        choice = int(user_input.strip())
+    except ValueError:
+        custom_id = user_input.strip()
+        if not custom_id:
+            return False
+            
+        current_provider = orchestrator.llm_client.provider
+        configured = get_all_configured_providers()
+        
+        # SMART DETECT: Jika input memiliki garis miring '/' dan OpenRouter ada kuncinya,
+        # hampir dipastikan user ingin pakai ID milik OpenRouter meski posisinya sedang di provider lain.
+        if "/" in custom_id and "openrouter" in configured and current_provider != "openrouter":
+            current_provider = "openrouter"
+
+        # Jika bukan angka, anggap user mengetik custom model ID untuk provider aktif
+        # asalkan provider tersebut (atau yang dideteksi) mendukung open model.
+        if current_provider in OPEN_MODEL_PROVIDERS:
+            orchestrator.llm_client.switch(current_provider, custom_id)
+            set_active_provider(current_provider)
+            set_active_model(current_provider, custom_id)
+            show_info(f"✓ Beralih ke custom model: {current_provider} ({custom_id})")
+            return True
+        else:
+            show_error("Input harus berupa angka dari daftar di atas. Untuk string kustom, gunakan provider seperti OpenRouter.")
+            return False
+
+    if choice not in choices:
+        show_error(f"Pilihan tidak valid: {choice}")
+        return False
+
+    new_provider, new_model = choices[choice]
+    try:
+        orchestrator.llm_client.switch(new_provider, new_model)
+        set_active_provider(new_provider)
+        set_active_model(new_provider, new_model)
+        show_info(f"✓ Beralih ke: {new_provider} ({new_model})")
+        return True
+    except ValueError as e:
+        show_error(str(e))
+        return False
+
+
 def _handle_slash_command(user_input: str, orchestrator) -> Optional[bool]:
     """Process slash commands.
 
@@ -137,7 +256,7 @@ def _handle_slash_command(user_input: str, orchestrator) -> Optional[bool]:
         display_console.print("\n[dim]Sampai jumpa![/dim]")
         return False
 
-    if cmd == "/help":
+    if cmd in ("/help", "/"):
         show_help()
         return True
 
@@ -159,6 +278,19 @@ def _handle_slash_command(user_input: str, orchestrator) -> Optional[bool]:
             show_error("Gunakan: /mode vector|graph|compare")
         return True
 
+    if cmd == "/provider":
+        _show_provider_menu(orchestrator)
+        # Set a flag so the REPL knows the next numeric input is a choice
+        orchestrator._awaiting_provider_choice = True
+        return True
+
+    if cmd == "/info":
+        provider = orchestrator.llm_client.provider
+        model = orchestrator.llm_client.model_id
+        mode = orchestrator.current_mode
+        show_info(f"Provider: {provider} │ Model: {model} │ Mode: {mode}")
+        return True
+
     # Unknown slash command
     show_error(f"Perintah tidak dikenal: {cmd}. Ketik /help untuk bantuan.")
     return True
@@ -171,29 +303,108 @@ def _handle_slash_command(user_input: str, orchestrator) -> Optional[bool]:
 @config_app.command("set")
 def config_set(
     provider: str = typer.Argument(
-        ..., help="Provider: gemini, openai, anthropic"
+        ..., help="Provider: gemini, openai, anthropic, deepseek, openrouter, custom"
     ),
     key: str = typer.Argument(..., help="API key"),
 ) -> None:
     """Set API key for a provider."""
     if provider not in PROVIDER_ENV_KEYS:
+        valid = ", ".join(PROVIDER_ENV_KEYS.keys())
         show_error(
             f"Provider tidak valid: {provider}. "
-            "Gunakan: gemini, openai, anthropic"
+            f"Gunakan: {valid}"
         )
         raise typer.Exit(1)
     set_api_key(provider, key)
     show_info(f"API key untuk '{provider}' berhasil disimpan.")
 
 
+@config_app.command("model")
+def config_model(
+    provider: str = typer.Argument(
+        ..., help="Provider name (e.g. gemini, openai)"
+    ),
+    model_id: str = typer.Argument(
+        ..., help="Model ID (e.g. gemini-2.5-pro, gpt-4o)"
+    ),
+) -> None:
+    """Set the default model for a provider."""
+    if provider not in MODEL_REGISTRY:
+        show_error(f"Provider tidak dikenal: {provider}")
+        raise typer.Exit(1)
+        
+    if provider not in OPEN_MODEL_PROVIDERS:
+        valid_ids = [m["id"] for m in MODEL_REGISTRY[provider]]
+        if model_id not in valid_ids:
+            show_error(f"Model '{model_id}' tidak tersedia untuk {provider}.")
+            show_info(f"Pilihan: {', '.join(valid_ids)}")
+            raise typer.Exit(1)
+            
+    set_active_model(provider, model_id)
+    show_info(f"Model default untuk '{provider}' diubah ke: {model_id}")
+
+
+@config_app.command("use")
+def config_use(
+    provider: str = typer.Argument(
+        ..., help="Provider to set as active default"
+    ),
+) -> None:
+    """Set the default active provider."""
+    if provider not in PROVIDER_ENV_KEYS:
+        valid = ", ".join(PROVIDER_ENV_KEYS.keys())
+        show_error(f"Provider tidak valid: {provider}. Gunakan: {valid}")
+        raise typer.Exit(1)
+    if not get_api_key(provider):
+        show_error(f"API key belum diset untuk '{provider}'.")
+        show_info(f"Jalankan dulu: joomha config set {provider} <key>")
+        raise typer.Exit(1)
+    set_active_provider(provider)
+    model = get_active_model(provider)
+    show_info(f"Provider aktif diubah ke: {provider} (model: {model})")
+
+
+@config_app.command("base-url")
+def config_base_url(
+    url: str = typer.Argument(..., help="Base URL for custom provider"),
+) -> None:
+    """Set custom OpenAI-compatible endpoint URL."""
+    set_custom_base_url(url)
+    show_info(f"Custom base URL diset ke: {url}")
+
+
 @config_app.command("show")
 def config_show() -> None:
-    """Show current configuration."""
-    provider = get_active_provider()
-    has_key = bool(get_api_key(provider))
-    show_info(f"Provider aktif: {provider}")
-    key_status = "\u2713 tersedia" if has_key else "\u2717 belum diatur"
-    show_info(f"API key: {key_status}")
+    """Show all configured providers and their status."""
+    from rich.table import Table
+
+    configured = get_all_configured_providers()
+    active = get_active_provider()
+
+    if not configured:
+        show_info("Belum ada provider yang dikonfigurasi.")
+        show_info("Jalankan: joomha config set <provider> <api_key>")
+        return
+
+    table = Table(title="Konfigurasi Joomha", show_lines=True)
+    table.add_column("Provider", style="cyan")
+    table.add_column("API Key", width=12)
+    table.add_column("Model Aktif", style="white")
+    table.add_column("Status")
+
+    for provider in PROVIDER_ENV_KEYS:
+        has_key = provider in configured
+        model = get_active_model(provider) if has_key else "—"
+        key_status = "[green]✓ tersedia[/green]" if has_key else "[dim]✗ belum diatur[/dim]"
+        active_marker = "[bold green]● AKTIF[/bold green]" if provider == active else ""
+        table.add_row(provider, key_status, model, active_marker)
+
+    display_console.print(table)
+
+    # Show custom base URL if configured
+    custom_url = get_custom_base_url()
+    if custom_url:
+        show_info(f"Custom base URL: {custom_url}")
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +419,12 @@ def main(
     ),
     version: bool = typer.Option(
         False, "--version", "-v", help="Tampilkan versi"
+    ),
+    provider: Optional[str] = typer.Option(
+        None, "--provider", "-p", help="Override provider (gemini/openai/anthropic/deepseek/openrouter/custom)"
+    ),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Override model ID"
     ),
 ) -> None:
     """Joomha — Understand any codebase through conversation."""
@@ -228,11 +445,25 @@ def main(
         show_info("Jalankan 'joomha' di dalam direktori yang memiliki .git")
         raise typer.Exit(1)
 
-    provider = get_active_provider()
-    if not get_api_key(provider):
-        show_error(f"API key belum diatur untuk provider '{provider}'.")
-        show_info(f"Set via: export {PROVIDER_ENV_KEYS[provider]}=<key>")
-        show_info("Atau: joomha config set gemini <key>")
+    # Determine provider (CLI flag > config > auto-detect)
+    active_prov = provider or get_active_provider()
+    if not get_api_key(active_prov):
+        show_error(f"API key belum diatur untuk provider '{active_prov}'.")
+        env_key = PROVIDER_ENV_KEYS.get(active_prov, "")
+        if env_key:
+            show_info(f"Set via: export {env_key}=<key>")
+        show_info(f"Atau: joomha config set {active_prov} <key>")
+
+        # Show other configured providers as alternatives
+        others = get_all_configured_providers()
+        if others:
+            show_info(f"Provider lain yang sudah dikonfigurasi: {', '.join(others)}")
+            show_info(f"Gunakan: joomha --provider {others[0]}")
+        else:
+            display_console.print("\n[dim]ℹ Ingin menggunakan provider lain (openai, anthropic, deepseek, openrouter)?[/dim]")
+            display_console.print("[dim]  1. Simpan key: [/dim][cyan]joomha config set <provider> <key>[/cyan]")
+            display_console.print("[dim]  2. Jadikan default: [/dim][cyan]joomha config use <provider>[/cyan]")
+            
         raise typer.Exit(1)
 
     # ── Startup ───────────────────────────────────────────────────────
@@ -244,14 +475,38 @@ def main(
         show_info("Memulai indexing repositori...")
         _run_indexing(repo_root, joomha_dir, db_path, lancedb_dir)
     else:
-        show_info("Index ditemukan. Gunakan --reindex untuk memperbarui.")
+        # Bug 8: warn user if index might be stale
+        db_file = joomha_dir / "index.db"
+        if db_file.exists():
+            idx_mtime = db_file.stat().st_mtime
+            newest_src = 0.0
+            for ext in (".py", ".js", ".ts", ".jsx", ".tsx"):
+                for f in repo_root.rglob(f"*{ext}"):
+                    try:
+                        mt = f.stat().st_mtime
+                        if mt > newest_src:
+                            newest_src = mt
+                    except OSError:
+                        pass
+            if newest_src > idx_mtime:
+                show_info(
+                    "⚠ Terdeteksi file yang lebih baru dari index. "
+                    "Pertimbangkan --reindex untuk hasil akurat."
+                )
+            else:
+                show_info("Index ditemukan. Gunakan --reindex untuk memperbarui.")
+        else:
+            show_info("Index ditemukan. Gunakan --reindex untuk memperbarui.")
 
     # ── Init orchestrator ─────────────────────────────────────────────
     from joomha.orchestrator import Orchestrator
 
     try:
         with display_console.status("[cyan]Menghidupkan mesin AI (Loading Model)..."):
-            orchestrator = Orchestrator(str(repo_root), db_path, lancedb_dir)
+            orchestrator = Orchestrator(
+                str(repo_root), db_path, lancedb_dir,
+                provider=active_prov, model=model,
+            )
     except ValueError as e:
         show_error(str(e))
         raise typer.Exit(1)
@@ -261,21 +516,39 @@ def main(
 
     session = create_session(history_path)
 
-    show_info(f"Mode: {orchestrator.current_mode} │ Provider: {provider}")
-    show_info("Ketik pertanyaan atau /help untuk bantuan.\n")
+    llm_info = orchestrator.llm_client.info()
+    show_info(f"Mode: {orchestrator.current_mode} │ LLM: {llm_info}")
+    show_info("Ketik pertanyaan, /help untuk bantuan, atau /provider untuk ganti LLM.\n")
 
     # ── REPL loop ─────────────────────────────────────────────────────
     try:
         while True:
             try:
                 mode_label = orchestrator.current_mode
-                prompt_text = f"[{mode_label}] ❯ "
+                prov_short = orchestrator.llm_client.provider
+                prompt_text = f"[{mode_label}│{prov_short}] ❯ "
                 user_input = session.prompt(prompt_text)
             except EOFError:
                 break
 
             if not user_input.strip():
                 continue
+
+            # Provider choice pending (after /provider menu)
+            if getattr(orchestrator, '_awaiting_provider_choice', False):
+                orchestrator._awaiting_provider_choice = False
+                user_input_clean = user_input.strip()
+                
+                # Jika user terlanjur ngetik "/" di depan angka (misal /1), kita hapus
+                if user_input_clean.startswith("/") and user_input_clean[1:].isdigit():
+                    user_input_clean = user_input_clean[1:]
+                
+                # Cek apakah command lain (misal /help), biarkan tembus
+                if user_input_clean.startswith("/") and not user_input_clean[1:].isdigit():
+                    user_input = user_input_clean  # fallthrough ke handler slash command
+                else:
+                    _handle_provider_switch(user_input_clean, orchestrator)
+                    continue
 
             # Slash commands
             if user_input.strip().startswith("/"):
@@ -302,7 +575,7 @@ def main(
             )
 
     except KeyboardInterrupt:
-        display_console.print("\n[dim]Sampai jumpa! 👋[/dim]")
+        display_console.print("\n[dim]Sampai jumpa! [/dim]")
 
 
 if __name__ == "__main__":
