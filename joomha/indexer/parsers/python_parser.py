@@ -1,8 +1,5 @@
-"""Python parser — extracts AST nodes and import edges using the stdlib `ast` module.
+"""[PENANDA]"""
 
-Bug B fix: relative imports (from .utils import X) now resolve from the
-source file's directory instead of always from the repo root.
-"""
 
 import ast
 from pathlib import Path
@@ -12,7 +9,7 @@ from joomha.indexer.parsers.base import BaseParser
 
 
 class PythonParser(BaseParser):
-    """Parse Python source files using the built-in `ast` module."""
+    """Parser file kode sumber Python"""
 
     def extensions(self) -> List[str]:
         return [".py"]
@@ -21,7 +18,7 @@ class PythonParser(BaseParser):
         return "python"
 
     # ------------------------------------------------------------------
-    # Helpers
+    # Fungsi pembantu
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -31,19 +28,12 @@ class PythonParser(BaseParser):
         source_file: Optional[Path] = None,
         level: int = 0,
     ) -> Optional[str]:
-        """Try to map a dotted module name to a relative file path.
+        """Petakan nama modul ke path file relatif"""
 
-        Args:
-            module_name: The dotted module string (e.g. "utils.helpers").
-            repo_root:   Absolute path to the repo root.
-            source_file: Absolute path to the file containing the import
-                         (needed for relative imports).
-            level:       Number of leading dots (0 = absolute, 1 = ., 2 = ..).
-        """
         # --- Bug B: handle relative imports ---
         if level > 0 and source_file is not None:
             base_dir = source_file.parent
-            # Walk up `level - 1` directories (level=1 means current package)
+            # Naik ke direktori induk
             for _ in range(level - 1):
                 base_dir = base_dir.parent
         else:
@@ -51,7 +41,7 @@ class PythonParser(BaseParser):
 
         parts = module_name.split(".") if module_name else []
 
-        # package/__init__.py
+        # Inisialisasi package
         candidate = base_dir.joinpath(*parts, "__init__.py") if parts else None
         if candidate and candidate.exists():
             try:
@@ -59,7 +49,7 @@ class PythonParser(BaseParser):
             except ValueError:
                 pass
 
-        # module.py
+        # Modul
         if parts:
             candidate = base_dir.joinpath(*parts).with_suffix(".py")
             if candidate.exists():
@@ -68,7 +58,7 @@ class PythonParser(BaseParser):
                 except ValueError:
                     pass
 
-        # bare relative with no module name (e.g. `from . import foo`)
+        # Import relatif kosong
         if level > 0 and not module_name:
             candidate = base_dir / "__init__.py"
             if candidate.exists():
@@ -80,13 +70,13 @@ class PythonParser(BaseParser):
         return None
 
     # ------------------------------------------------------------------
-    # Interface implementation
+    # Implementasi Antarmuka
     # ------------------------------------------------------------------
 
     def parse_file(
         self, file_path: Path, repo_root: Path
     ) -> Dict[str, List[Dict]]:
-        """Parse one Python file and return nodes + edges."""
+        """Ekstraksi node dan edge dari Python"""
         rel_path = str(file_path.relative_to(repo_root))
         nodes: List[Dict] = []
         edges: List[Dict] = []
@@ -97,7 +87,7 @@ class PythonParser(BaseParser):
         except SyntaxError:
             return {"nodes": nodes, "edges": edges}
 
-        # Module-level node
+        # Node level modul
         line_count = len(source.splitlines())
         nodes.append({
             "file_path":  rel_path,

@@ -1,9 +1,9 @@
-"""Rich display components — banners, panels, tables, progress indicators."""
+"""[PENANDA]"""
 
 import sys
 import os
 
-# Force UTF-8 on Windows to avoid cp1252 encoding errors
+# Paksa UTF-8 di Windows
 if sys.platform == "win32":
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
     if hasattr(sys.stdout, "reconfigure"):
@@ -37,7 +37,7 @@ MODE_COLORS = {
 
 
 def show_banner() -> None:
-    """Display the Joomha ASCII art banner at startup."""
+    """Tampilkan banner saat startup"""
     console.print(
         Panel(
             Text(BANNER, style="bold cyan", justify="center"),
@@ -48,7 +48,7 @@ def show_banner() -> None:
 
 
 def show_answer(answer: str, mode: str, latency: float, context_count: int) -> None:
-    """Render the LLM answer inside a colour-coded Rich panel."""
+    """Tampilkan output cantik berpanel"""
     color = MODE_COLORS.get(mode, "white")
     md = Markdown(answer)
     footer = (
@@ -69,7 +69,7 @@ def show_answer(answer: str, mode: str, latency: float, context_count: int) -> N
 
 
 def show_hotspots(data: list) -> None:
-    """Display the file-hotspot leaderboard as a Rich table."""
+    """Tampilkan tabel klasemen file hotspot"""
     if not data:
         console.print("[yellow]Tidak ada data hotspot.[/yellow]")
         return
@@ -86,7 +86,7 @@ def show_hotspots(data: list) -> None:
 
 
 def show_help() -> None:
-    """Print the slash-command reference table."""
+    """Cetak tabel perintah utama"""
     table = Table(title="📖 Perintah Joomha", border_style="blue")
     table.add_column("Command", style="cyan bold")
     table.add_column("Deskripsi", style="white")
@@ -104,16 +104,16 @@ def show_help() -> None:
 
 
 def show_mode_change(mode: str) -> None:
-    """Confirm a mode switch to the user."""
+    """Konfirmasi pergantian mode ke pengguna"""
     color = MODE_COLORS.get(mode, "white")
     console.print(f"[{color}]\u2713 Mode diubah ke: {mode}[/{color}]")
 
 
 def show_error(message: str) -> None:
-    """Print an error message."""
+    """Cetak pesan error"""
     console.print(f"[bold red]\u2717 Error:[/bold red] {message}")
 
 
 def show_info(message: str) -> None:
-    """Print an informational message."""
+    """Cetak pesan informasi"""
     console.print(f"[bold blue]\u2139[/bold blue] {message}")

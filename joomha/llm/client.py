@@ -1,9 +1,5 @@
-"""Multi-provider LLM client — supports Gemini, OpenAI, Anthropic,
-DeepSeek, OpenRouter, and custom OpenAI-compatible endpoints.
+"""[PENANDA]"""
 
-Users can store multiple API keys and switch between providers/models at
-runtime via the ``/provider`` slash command.
-"""
 
 import re
 import time
@@ -19,7 +15,7 @@ from joomha.config import (
 )
 
 # ---------------------------------------------------------------------------
-# Bug 10: Regex patterns to detect credentials / secrets in code context
+# Regex pendeteksi kredensial/rahasia
 # ---------------------------------------------------------------------------
 
 _SECRET_PATTERNS = [
@@ -34,23 +30,15 @@ _SECRET_PATTERNS = [
 
 
 def _sanitise_code(text: str) -> str:
-    """Replace suspicious credential patterns with a placeholder."""
+    """Ganti kredensial dengan teks placeholder"""
     for pattern in _SECRET_PATTERNS:
         text = pattern.sub("[CREDENTIAL_REDACTED]", text)
     return text
 
 
 class LLMClient:
-    """Thin wrapper that talks to whichever LLM provider is configured.
+    """[PENANDA]"""
 
-    Supports:
-      - ``gemini``     — Google Generative AI SDK
-      - ``openai``     — OpenAI Python SDK
-      - ``anthropic``  — Anthropic Python SDK
-      - ``deepseek``   — OpenAI-compatible (base_url = api.deepseek.com)
-      - ``openrouter`` — OpenAI-compatible (base_url = openrouter.ai)
-      - ``custom``     — Any OpenAI-compatible endpoint (user-defined URL)
-    """
 
     def __init__(self, provider: Optional[str] = None, model: Optional[str] = None):
         self.provider = provider or get_active_provider()
@@ -64,27 +52,27 @@ class LLMClient:
         self._init_client()
 
     # ------------------------------------------------------------------
-    # Provider categorisation
+    # Kategori provider
     # ------------------------------------------------------------------
 
     def _is_openai_compatible(self) -> bool:
-        """DeepSeek, OpenRouter, custom → all use the OpenAI SDK."""
+        """[PENANDA]"""
         return self.provider in ("openai", "deepseek", "openrouter", "custom")
 
     def _get_base_url(self) -> Optional[str]:
-        """Return base_url override for OpenAI-compatible providers."""
+        """Ambil URL dasar custom"""
         if self.provider in PROVIDER_BASE_URLS:
             return PROVIDER_BASE_URLS[self.provider]
         if self.provider == "custom":
             return get_custom_base_url()
-        return None  # openai uses default
+        return None  # OpenAI menggunakan default
 
     # ------------------------------------------------------------------
-    # Initialisation
+    # Inisialisasi
     # ------------------------------------------------------------------
 
     def _init_client(self) -> None:
-        """Lazily import and initialise the chosen provider SDK."""
+        """Muat SDK provider yang dipilih"""
 
         if self.provider == "gemini":
             import google.generativeai as genai
@@ -99,7 +87,7 @@ class LLMClient:
             )
 
         elif self._is_openai_compatible():
-            # OpenAI / DeepSeek / OpenRouter / Custom — all share the SDK
+            # [INFO] OpenAI / DeepSeek / OpenRouter / Custom — all share the SDK
             from openai import OpenAI
             kwargs = {
                 "api_key": self.api_key,
@@ -114,11 +102,11 @@ class LLMClient:
             raise ValueError(f"Provider tidak dikenal: {self.provider}")
 
     # ------------------------------------------------------------------
-    # Hot-swap (called from /provider command)
+    # Ganti kilat provider
     # ------------------------------------------------------------------
 
     def switch(self, provider: str, model_id: Optional[str] = None) -> None:
-        """Switch provider/model at runtime without recreating Orchestrator."""
+        """Ganti model tanpa memuat ulang sistem"""
         self.provider = provider
         self.model_id = model_id or get_active_model(provider)
         self.api_key = get_api_key(provider)
@@ -130,11 +118,11 @@ class LLMClient:
         self._init_client()
 
     # ------------------------------------------------------------------
-    # Generation
+    # Proses pembuatan kode
     # ------------------------------------------------------------------
 
     def generate(self, prompt: str) -> Tuple[str, float]:
-        """Send prompt to LLM. Returns (response_text, latency_seconds)."""
+        """Kirim pertanyaan ke LLM"""
         prompt = _sanitise_code(prompt)
         start = time.time()
 
@@ -155,7 +143,7 @@ class LLMClient:
                 text = response.content[0].text
 
             elif self._is_openai_compatible():
-                # Works for openai, deepseek, openrouter, custom
+                # Kompatibel beragam provider
                 extra_headers = {}
                 if self.provider == "openrouter":
                     extra_headers["HTTP-Referer"] = "https://github.com/joomha-cli"
@@ -180,9 +168,9 @@ class LLMClient:
         return text, latency
 
     # ------------------------------------------------------------------
-    # Display helpers
+    # Pembantu Tampilan
     # ------------------------------------------------------------------
 
     def info(self) -> str:
-        """Return a human-readable summary of the current provider & model."""
+        """Ringkasan model aktif"""
         return f"{self.provider} ({self.model_id})"

@@ -36,7 +36,7 @@ from joomha.ui.display import (
 )
 
 # ---------------------------------------------------------------------------
-# Typer app
+# Aplikasi CLI Typer
 # ---------------------------------------------------------------------------
 
 app = typer.Typer(
@@ -49,7 +49,7 @@ config_app = typer.Typer(help="Manage API keys and configuration.")
 app.add_typer(config_app, name="config")
 
 # ---------------------------------------------------------------------------
-# Constants
+# Konstanta
 # ---------------------------------------------------------------------------
 
 JOOMHA_DIR = ".joomha"
@@ -59,11 +59,11 @@ HISTORY_FILE = "input_history.txt"
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Fungsi pembantu
 # ---------------------------------------------------------------------------
 
 def _get_paths(repo_root: Path):
-    """Derive all .joomha sub-paths from the repo root."""
+    """Dapatkan path file internal"""
     joomha_dir = repo_root / JOOMHA_DIR
     db_path = str(joomha_dir / DB_NAME)
     lancedb_dir = str(joomha_dir / LANCEDB_DIR)
@@ -74,14 +74,14 @@ def _get_paths(repo_root: Path):
 def _run_indexing(
     repo_root: Path, joomha_dir: Path, db_path: str, lancedb_dir: str
 ) -> None:
-    """Execute the full indexing pipeline (AST + Git + Vector)."""
+    """Jalankan indexing menyeluruh"""
     from joomha.indexer.ast_parser import init_db, parse_repo
     from joomha.indexer.git_analyzer import analyze_git
     from joomha.indexer.vector_builder import build_vectors
 
     joomha_dir.mkdir(parents=True, exist_ok=True)
 
-    # Bug Q: ensure .gitignore exists inside .joomha/
+    # Pastikan .gitignore dibuat
     ensure_joomha_gitignore(joomha_dir)
 
     from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
@@ -93,12 +93,12 @@ def _run_indexing(
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         console=display_console,
     ) as progress:
-        # 1. Database
+        # 1. Persiapan Database
         task = progress.add_task("[cyan]Inisialisasi database...", total=1)
         conn = init_db(db_path)
         progress.update(task, advance=1, description="[green]✓ Database siap")
 
-        # 2. AST
+        # Ekstraksi AST
         task = progress.add_task("[cyan]Parsing AST kode sumber...", total=100)
         def ast_cb(count, total):
             progress.update(task, completed=count, total=total)
@@ -107,7 +107,7 @@ def _run_indexing(
 
         file_count = parse_repo(repo_root, conn, progress_callback=ast_cb)
 
-        # 3. Git
+        # Analisis Git
         task = progress.add_task("[cyan]Menganalisis riwayat git...", total=100)
         def git_cb(count, total):
             progress.update(task, completed=count, total=total)
@@ -117,7 +117,7 @@ def _run_indexing(
         commit_count = analyze_git(repo_root, conn, progress_callback=git_cb)
         conn.close()
 
-        # 4. Vectors
+        # Pembuatan vektor
         task = progress.add_task(
             "[cyan]Membangun vector embeddings...", total=100
         )
@@ -135,11 +135,11 @@ def _run_indexing(
 
 
 # ---------------------------------------------------------------------------
-# Provider switching helper (for /provider command)
+# Pembantu ubah provider
 # ---------------------------------------------------------------------------
 
 def _show_provider_menu(orchestrator) -> None:
-    """Display an interactive provider/model selector."""
+    """Tampilkan menu pemilihan provider/model"""
     from rich.table import Table
 
     configured = get_all_configured_providers()
@@ -151,13 +151,13 @@ def _show_provider_menu(orchestrator) -> None:
         show_info("Jalankan: joomha config set <provider> <api_key>")
         return
 
-    # Show current status
+    # Tampilkan status saat ini
     display_console.print(
         f"\n[bold cyan]Provider aktif:[/bold cyan] {active_provider} "
         f"([green]{active_model}[/green])\n"
     )
 
-    # Show all configured providers with their models
+    # Tampilkan model provider
     table = Table(title="Provider & Model Tersedia", show_lines=True)
     table.add_column("#", style="dim", width=3)
     table.add_column("Provider", style="cyan")
@@ -166,7 +166,7 @@ def _show_provider_menu(orchestrator) -> None:
     table.add_column("Status", width=8)
 
     idx = 1
-    choices = {}  # idx → (provider, model_id)
+    choices = {}  # [INFO] idx → (provider, model_id)
     for provider in configured:
         models = MODEL_REGISTRY.get(provider, [{"id": "default", "label": "Default", "tier": "—"}])
         for m in models:
@@ -189,7 +189,7 @@ def _show_provider_menu(orchestrator) -> None:
 
 
 def _handle_provider_switch(user_input: str, orchestrator) -> bool:
-    """Handle provider selection number input. Returns True if switched."""
+    """Tangani input nomor pemilihan provider"""
     configured = get_all_configured_providers()
     choices = {}
     idx = 1
@@ -209,13 +209,13 @@ def _handle_provider_switch(user_input: str, orchestrator) -> bool:
         current_provider = orchestrator.llm_client.provider
         configured = get_all_configured_providers()
         
-        # SMART DETECT: Jika input memiliki garis miring '/' dan OpenRouter ada kuncinya,
-        # hampir dipastikan user ingin pakai ID milik OpenRouter meski posisinya sedang di provider lain.
+        # Deteksi pintar untuk OpenRouter
+        # Gunakan ID model OpenRouter
         if "/" in custom_id and "openrouter" in configured and current_provider != "openrouter":
             current_provider = "openrouter"
 
-        # Jika bukan angka, anggap user mengetik custom model ID untuk provider aktif
-        # asalkan provider tersebut (atau yang dideteksi) mendukung open model.
+        # Anggap custom model ID jika bukan angka
+        # Pastikan dukungan model terbuka
         if current_provider in OPEN_MODEL_PROVIDERS:
             orchestrator.llm_client.switch(current_provider, custom_id)
             set_active_provider(current_provider)
@@ -243,13 +243,8 @@ def _handle_provider_switch(user_input: str, orchestrator) -> bool:
 
 
 def _handle_slash_command(user_input: str, orchestrator) -> Optional[bool]:
-    """Process slash commands.
+    """[PENANDA]"""
 
-    Returns:
-        True  — command handled, continue the REPL
-        False — user wants to quit
-        None  — input is not a slash command
-    """
     cmd = user_input.strip().lower()
 
     if cmd in ("/q", "/quit"):
@@ -280,7 +275,7 @@ def _handle_slash_command(user_input: str, orchestrator) -> Optional[bool]:
 
     if cmd == "/provider":
         _show_provider_menu(orchestrator)
-        # Set a flag so the REPL knows the next numeric input is a choice
+        # Set flag untuk input pilihan angka
         orchestrator._awaiting_provider_choice = True
         return True
 
@@ -291,13 +286,13 @@ def _handle_slash_command(user_input: str, orchestrator) -> Optional[bool]:
         show_info(f"Provider: {provider} │ Model: {model} │ Mode: {mode}")
         return True
 
-    # Unknown slash command
+    # Perintah tidak dikenali
     show_error(f"Perintah tidak dikenal: {cmd}. Ketik /help untuk bantuan.")
     return True
 
 
 # ---------------------------------------------------------------------------
-# Config sub-commands
+# Sub-perintah konfigurasi
 # ---------------------------------------------------------------------------
 
 @config_app.command("set")
@@ -307,7 +302,7 @@ def config_set(
     ),
     key: str = typer.Argument(..., help="API key"),
 ) -> None:
-    """Set API key for a provider."""
+    """Atur API key provider"""
     if provider not in PROVIDER_ENV_KEYS:
         valid = ", ".join(PROVIDER_ENV_KEYS.keys())
         show_error(
@@ -328,7 +323,7 @@ def config_model(
         ..., help="Model ID (e.g. gemini-2.5-pro, gpt-4o)"
     ),
 ) -> None:
-    """Set the default model for a provider."""
+    """Set model default untuk provider"""
     if provider not in MODEL_REGISTRY:
         show_error(f"Provider tidak dikenal: {provider}")
         raise typer.Exit(1)
@@ -350,7 +345,7 @@ def config_use(
         ..., help="Provider to set as active default"
     ),
 ) -> None:
-    """Set the default active provider."""
+    """Atur provider aktif default"""
     if provider not in PROVIDER_ENV_KEYS:
         valid = ", ".join(PROVIDER_ENV_KEYS.keys())
         show_error(f"Provider tidak valid: {provider}. Gunakan: {valid}")
@@ -368,14 +363,14 @@ def config_use(
 def config_base_url(
     url: str = typer.Argument(..., help="Base URL for custom provider"),
 ) -> None:
-    """Set custom OpenAI-compatible endpoint URL."""
+    """Atur URL OpenAI custom"""
     set_custom_base_url(url)
     show_info(f"Custom base URL diset ke: {url}")
 
 
 @config_app.command("show")
 def config_show() -> None:
-    """Show all configured providers and their status."""
+    """Tampilkan semua provider terpasang"""
     from rich.table import Table
 
     configured = get_all_configured_providers()
@@ -401,14 +396,14 @@ def config_show() -> None:
 
     display_console.print(table)
 
-    # Show custom base URL if configured
+    # Tampilkan URL dasar custom jika ada
     custom_url = get_custom_base_url()
     if custom_url:
         show_info(f"Custom base URL: {custom_url}")
 
 
 # ---------------------------------------------------------------------------
-# Main command
+# Perintah Utama
 # ---------------------------------------------------------------------------
 
 @app.callback(invoke_without_command=True)
@@ -427,9 +422,9 @@ def main(
         None, "--model", "-m", help="Override model ID"
     ),
 ) -> None:
-    """Joomha — Understand any codebase through conversation."""
+    """[PENANDA]"""
 
-    # If a subcommand like "config" is being invoked, skip REPL
+    # Lewati REPL jika subcommand digunakan
     if ctx.invoked_subcommand is not None:
         return
 
@@ -439,13 +434,13 @@ def main(
 
     repo_root = Path.cwd()
 
-    # ── Pre-flight checks ─────────────────────────────────────────────
+    # [INFO] ── Pre-flight checks ─────────────────────────────────────────────
     if not (repo_root / ".git").exists():
         show_error("Direktori ini bukan repositori Git.")
         show_info("Jalankan 'joomha' di dalam direktori yang memiliki .git")
         raise typer.Exit(1)
 
-    # Determine provider (CLI flag > config > auto-detect)
+    # Tentukan provider dari konfigurasi
     active_prov = provider or get_active_provider()
     if not get_api_key(active_prov):
         show_error(f"API key belum diatur untuk provider '{active_prov}'.")
@@ -454,7 +449,7 @@ def main(
             show_info(f"Set via: export {env_key}=<key>")
         show_info(f"Atau: joomha config set {active_prov} <key>")
 
-        # Show other configured providers as alternatives
+        # Tampilkan provider alternatif
         others = get_all_configured_providers()
         if others:
             show_info(f"Provider lain yang sudah dikonfigurasi: {', '.join(others)}")
@@ -466,7 +461,7 @@ def main(
             
         raise typer.Exit(1)
 
-    # ── Startup ───────────────────────────────────────────────────────
+    # [INFO] ── Startup ───────────────────────────────────────────────────────
     show_banner()
 
     joomha_dir, db_path, lancedb_dir, history_path = _get_paths(repo_root)
@@ -475,7 +470,7 @@ def main(
         show_info("Memulai indexing repositori...")
         _run_indexing(repo_root, joomha_dir, db_path, lancedb_dir)
     else:
-        # Bug 8: warn user if index might be stale
+        # Beri peringatan jika data lawas
         db_file = joomha_dir / "index.db"
         if db_file.exists():
             idx_mtime = db_file.stat().st_mtime
@@ -498,7 +493,7 @@ def main(
         else:
             show_info("Index ditemukan. Gunakan --reindex untuk memperbarui.")
 
-    # ── Init orchestrator ─────────────────────────────────────────────
+    # [INFO] ── Init orchestrator ─────────────────────────────────────────────
     from joomha.orchestrator import Orchestrator
 
     try:
@@ -511,7 +506,7 @@ def main(
         show_error(str(e))
         raise typer.Exit(1)
 
-    # ── Input session ─────────────────────────────────────────────────
+    # [INFO] ── Input session ─────────────────────────────────────────────────
     from joomha.ui.input_handler import create_session
 
     session = create_session(history_path)
@@ -520,7 +515,7 @@ def main(
     show_info(f"Mode: {orchestrator.current_mode} │ LLM: {llm_info}")
     show_info("Ketik pertanyaan, /help untuk bantuan, atau /provider untuk ganti LLM.\n")
 
-    # ── REPL loop ─────────────────────────────────────────────────────
+    # [INFO] ── REPL loop ─────────────────────────────────────────────────────
     try:
         while True:
             try:
@@ -534,30 +529,30 @@ def main(
             if not user_input.strip():
                 continue
 
-            # Provider choice pending (after /provider menu)
+            # Menunggu pilihan provider
             if getattr(orchestrator, '_awaiting_provider_choice', False):
                 orchestrator._awaiting_provider_choice = False
                 user_input_clean = user_input.strip()
                 
-                # Jika user terlanjur ngetik "/" di depan angka (misal /1), kita hapus
+                # Hapus tanda miring sebelum angka pilihan
                 if user_input_clean.startswith("/") and user_input_clean[1:].isdigit():
                     user_input_clean = user_input_clean[1:]
                 
-                # Cek apakah command lain (misal /help), biarkan tembus
+                # Izinkan command lain lolos
                 if user_input_clean.startswith("/") and not user_input_clean[1:].isdigit():
-                    user_input = user_input_clean  # fallthrough ke handler slash command
+                    user_input = user_input_clean  # Lanjut ke handler perintah slash
                 else:
                     _handle_provider_switch(user_input_clean, orchestrator)
                     continue
 
-            # Slash commands
+            # Perintah slash
             if user_input.strip().startswith("/"):
                 result = _handle_slash_command(user_input, orchestrator)
                 if result is False:
                     break
                 continue
 
-            # Normal question → RAG pipeline
+            # [INFO] Normal question → RAG pipeline
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),

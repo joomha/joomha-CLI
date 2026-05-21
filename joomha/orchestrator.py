@@ -12,7 +12,7 @@ from joomha.llm.prompt_builder import build_prompt
 
 
 class Orchestrator:
-    """Central coordinator for the Joomha Q&A pipeline."""
+    """Koordinator utama sistem Q&A"""
 
     def __init__(
         self,
@@ -26,43 +26,43 @@ class Orchestrator:
         self.db_path = db_path
         self.lancedb_dir = lancedb_dir
         self.joomha_dir = Path(repo_root) / ".joomha"
-        # Bug L: switched to .jsonl extension
+        # Ubah ke ekstensi JSONL
         self.session_log_path = self.joomha_dir / "session_log.jsonl"
 
-        self.current_mode = "graph"  # default mode
+        self.current_mode = "graph"  # Mode bawaan
 
-        # Bug 6: conversation history buffer (kept in memory for the session)
+        # Buffer riwayat percakapan di RAM
         self._conversation_history: List[Dict[str, str]] = []
-        self._max_history_turns = 5  # keep last N exchanges to limit token usage
+        self._max_history_turns = 5  # Batasi riwayat percakapan untuk hemat token
 
-        # Initialise components
+        # Inisialisasi komponen
         self.vector_retriever = VectorRetriever(lancedb_dir)
         self.graph_retriever = GraphRetriever(db_path, repo_root)
         self.llm_client = LLMClient(provider=provider, model=model)
 
     # ------------------------------------------------------------------
-    # Mode management
+    # Manajemen mode
     # ------------------------------------------------------------------
 
     def set_mode(self, mode: str) -> str:
-        """Switch retrieval mode. Returns a status message."""
+        """Ubah mode pencarian"""
         if mode in ("vector", "graph", "compare"):
             self.current_mode = mode
             return f"Mode diubah ke: {mode}"
         return f"Mode tidak valid: {mode}. Gunakan: vector, graph, compare"
 
     # ------------------------------------------------------------------
-    # Bug 6: Conversation history helpers
+    # Pembantu riwayat percakapan
     # ------------------------------------------------------------------
 
     def _build_history_context(self) -> str:
-        """Format the last N conversation turns for the prompt."""
+        """Format riwayat percakapan sebelumnya"""
         if not self._conversation_history:
             return ""
         parts = ["## Riwayat Percakapan (untuk konteks follow-up)\n"]
         for turn in self._conversation_history[-self._max_history_turns:]:
             parts.append(f"**User:** {turn['query']}")
-            # Truncate long answers to save tokens
+            # Potong teks jawaban panjang
             answer_preview = turn["answer"][:300]
             if len(turn["answer"]) > 300:
                 answer_preview += "..."
@@ -70,18 +70,18 @@ class Orchestrator:
         return "\n".join(parts)
 
     def _record_turn(self, query: str, answer: str) -> None:
-        """Append a turn to the in-memory conversation history."""
+        """Sisipkan obrolan ke riwayat memory"""
         self._conversation_history.append({
             "query": query,
             "answer": answer,
         })
 
     # ------------------------------------------------------------------
-    # Logging  (Bug L: JSONL append-only)
+    # Pencatatan log
     # ------------------------------------------------------------------
 
     def _log_interaction(self, query: str, result: Dict) -> None:
-        """Append this Q&A turn to session_log.jsonl (one JSON object per line)."""
+        """Tambahkan log Q&A per baris"""
         log_entry = {
             "query": query,
             "mode": result.get("mode_used", ""),
@@ -92,42 +92,42 @@ class Orchestrator:
         }
 
         self.joomha_dir.mkdir(parents=True, exist_ok=True)
-        # Bug L: append a single JSON line instead of rewriting the entire file
+        # Tempel log tanpa ubah keseluruhan file
         with open(self.session_log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
     # ------------------------------------------------------------------
-    # Query execution
+    # Eksekusi Kueri
     # ------------------------------------------------------------------
 
     def ask(self, query: str) -> Dict:
-        """Run the full RAG pipeline for a user question."""
+        """Jalankan jalur sistem RAG utama"""
         if self.current_mode == "compare":
             return self._ask_compare(query)
         if self.current_mode == "vector":
             return self._ask_single(query, "vector")
-        # default: graph with automatic fallback
+        # Default: grafis dengan fallback otomatis
         return self._ask_single(query, "graph")
 
     def _ask_single(self, query: str, mode: str) -> Dict:
-        """Execute a single-mode query (vector or graph w/ fallback)."""
+        """Jalankan kueri dalam satu mode (vektor/graf)"""
         mode_used = mode
 
         if mode == "graph":
             context = self.graph_retriever.retrieve(query)
             if not context:
-                # Automatic fallback — this is a feature, not an error.
+                # [INFO] Automatic fallback — this is a feature, not an error.
                 context = self.vector_retriever.retrieve(query)
                 mode_used = "vector (fallback)"
         else:
             context = self.vector_retriever.retrieve(query)
 
-        # Bug 6: include conversation history in the prompt
+        # Sertakan riwayat percakapan
         history_ctx = self._build_history_context()
         prompt = build_prompt(query, context, mode_used, history=history_ctx)
         answer, latency = self.llm_client.generate(prompt)
 
-        # Bug 6: record this turn
+        # Catat percakapan ini
         self._record_turn(query, answer)
 
         result = {
@@ -140,27 +140,23 @@ class Orchestrator:
         return result
 
     def _ask_compare(self, query: str) -> Dict:
-        """Run both retrievers side-by-side and return combined answer.
+        """Jalankan kedua pencari dan gabungkan hasil"""
 
-        Bug 7:  LLM calls run concurrently via ThreadPoolExecutor.
-        Bug I:  When graph falls back to vector, we reuse the already-fetched
-                vector context instead of calling vector retriever again.
-        """
-        # Retrieve contexts
+        # Ambil Konteks
         v_context = self.vector_retriever.retrieve(query)
         g_context = self.graph_retriever.retrieve(query)
         g_mode = "graph"
 
-        # Bug I: If graph is empty, reuse v_context instead of calling vector again
+        # Gunakan ulang konteks vektor jika graf kosong
         if not g_context:
-            g_context = v_context  # reuse — no extra retriever call
+            g_context = v_context  # [INFO] reuse — no extra retriever call
             g_mode = "vector (fallback)"
 
         history_ctx = self._build_history_context()
         v_prompt = build_prompt(query, v_context, "vector", history=history_ctx)
         g_prompt = build_prompt(query, g_context, g_mode, history=history_ctx)
 
-        # Bug 7: concurrent LLM calls
+        # Pemanggilan LLM secara konkuren
         with ThreadPoolExecutor(max_workers=2) as pool:
             future_v = pool.submit(self.llm_client.generate, v_prompt)
             future_g = pool.submit(self.llm_client.generate, g_prompt)
@@ -173,13 +169,13 @@ class Orchestrator:
             f"## 🟢 Graph Retrieval ({g_mode})\n{g_answer}"
         )
 
-        # Bug 6: record this turn
+        # Catat percakapan ini
         self._record_turn(query, combined_answer)
 
         result = {
             "answer": combined_answer,
             "mode_used": "compare",
-            "latency": max(v_latency, g_latency),  # concurrent → take the longer one
+            "latency": max(v_latency, g_latency),  # [INFO] concurrent → take the longer one
             "context_count": len(v_context) + len(g_context),
             "vector_answer": v_answer,
             "graph_answer": g_answer,
@@ -190,11 +186,11 @@ class Orchestrator:
         return result
 
     # ------------------------------------------------------------------
-    # Utility queries
+    # Kueri utilitas
     # ------------------------------------------------------------------
 
     def get_hotspots(self, limit: int = 10) -> List[Tuple[str, int]]:
-        """Return the top-N most frequently changed files."""
+        """Ambil file yang paling sering diubah"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(

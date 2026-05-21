@@ -1,4 +1,4 @@
-"""Input handler — prompt-toolkit session with slash-command completion."""
+"""[PENANDA]"""
 
 from pathlib import Path
 
@@ -22,7 +22,7 @@ SLASH_COMMANDS = [
 
 
 def create_session(history_path: str) -> PromptSession:
-    """Create a PromptSession with auto-complete, history, and auto-suggest."""
+    """Buat sesi input interaktif"""
     Path(history_path).parent.mkdir(parents=True, exist_ok=True)
 
     completer = WordCompleter(SLASH_COMMANDS, sentence=True)
