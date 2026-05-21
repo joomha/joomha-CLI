@@ -1,1 +1,1 @@
-"""Joomha retriever — vector and graph retrieval engines."""
+"""[PENANDA]"""

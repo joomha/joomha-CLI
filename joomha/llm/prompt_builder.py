@@ -1,8 +1,5 @@
-"""Prompt builder — constructs an IDENTICAL prompt structure for both retrieval modes.
+"""[PENANDA]"""
 
-This is critical for research validity: the wrapper prompt is always the same;
-only the formatted context block differs between vector and graph mode.
-"""
 
 from typing import List, Dict
 
@@ -35,7 +32,7 @@ SYSTEM_PROMPT = (
 
 
 def _format_vector_context(results: List[Dict]) -> str:
-    """Format vector retrieval results into a context string."""
+    """Format hasil pencarian vektor"""
     if not results:
         return "(Tidak ada konteks yang ditemukan)"
 
@@ -52,7 +49,7 @@ def _format_vector_context(results: List[Dict]) -> str:
 
 
 def _format_graph_context(results: List[Dict]) -> str:
-    """Format graph retrieval results into a context string (includes relationship metadata)."""
+    """Format konteks graf relasi"""
     if not results:
         return "(Tidak ada konteks yang ditemukan)"
 
@@ -85,20 +82,14 @@ def build_prompt(
     mode: str,
     history: str = "",
 ) -> str:
-    """Build the final prompt sent to the LLM.
+    """[PENANDA]"""
 
-    The wrapper structure (SYSTEM_PROMPT + HISTORY + KONTEKS + PERTANYAAN + JAWABAN)
-    is **identical** for every mode — only the context block changes.
-
-    Bug 6: An optional ``history`` string is inserted before the context to
-    give the LLM awareness of previous conversation turns.
-    """
     if mode in ("vector", "vector (fallback)"):
         context_text = _format_vector_context(context_results)
     else:
         context_text = _format_graph_context(context_results)
 
-    # Bug 6: inject conversation history when available
+    # Tambahkan riwayat percakapan
     history_block = f"\n{history}\n" if history else ""
 
     return (

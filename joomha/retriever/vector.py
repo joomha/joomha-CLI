@@ -1,10 +1,5 @@
-"""Vector-based retriever — cosine similarity search over LanceDB embeddings.
+"""[PENANDA]"""
 
-Bug fixes:
-  - Bug A:  EMBED_MODEL imported from config.py (no more duplication)
-  - Bug 3:  Improved keyword extraction with file-extension & typo tolerance
-  - Bug 12: TOP_K imported from config.py (configurable)
-"""
 
 from typing import List, Dict
 
@@ -15,7 +10,7 @@ from joomha.config import EMBED_MODEL, TOP_K
 
 
 class VectorRetriever:
-    """Retrieve code chunks by semantic similarity."""
+    """Ambil kode berdasarkan kemiripan makna"""
 
     def __init__(self, lancedb_dir: str):
         self.model = SentenceTransformer(EMBED_MODEL)
@@ -26,7 +21,7 @@ class VectorRetriever:
             self.table = None
 
     def retrieve(self, query: str) -> List[Dict]:
-        """Encode the query and return the top-K most similar chunks."""
+        """Cari potongan kode paling mirip dengan kueri"""
         if self.table is None:
             return []
             

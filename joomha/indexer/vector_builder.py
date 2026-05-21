@@ -1,14 +1,5 @@
-"""Vector embedding builder — chunks source files and stores in LanceDB.
+"""[PENANDA]"""
 
-Supports Python, JavaScript, and TypeScript files.
-
-Bug fixes:
-  - Bug A: EMBED_MODEL imported from config.py (single source of truth)
-  - Bug J: Only one lancedb.connect() call
-  - Bug 2: File path prefixed in chunk text for semantic search
-  - Bug K: Batched embedding to avoid loading all chunks into memory at once
-  - Bug R: AST-aware semantic chunking (function/class boundaries)
-"""
 
 import math
 from pathlib import Path
@@ -41,19 +32,13 @@ SCHEMA = pa.schema([
 
 
 def _should_exclude(rel_path: Path) -> bool:
-    """Return True if path contains an excluded directory."""
+    """Cek apakah path termasuk direktori yang dikecualikan"""
     return any(part in EXCLUDE_DIRS for part in rel_path.parts)
 
 
 def _chunk_file(file_path: Path, repo_root: Path) -> List[Dict]:
-    """Split a file into overlapping chunks of CHUNK_SIZE lines.
+    """[PENANDA]"""
 
-    Bug 2:  Every chunk now starts with ``File: <relative_path>`` so the
-            embedding model can distinguish source files during retrieval.
-    Bug R:  We attempt basic function/class boundary awareness — if a chunk
-            boundary falls inside a function/class, we extend to the next
-            blank-line boundary (heuristic; works for most code styles).
-    """
     try:
         content = file_path.read_text(encoding="utf-8", errors="ignore")
         lines = content.splitlines()
@@ -66,7 +51,7 @@ def _chunk_file(file_path: Path, repo_root: Path) -> List[Dict]:
     for start in range(0, len(lines), STEP):
         end = min(start + CHUNK_SIZE, len(lines))
 
-        # Bug R: Try to extend to a blank-line boundary (max +10 lines)
+        # Perluas teks hingga baris kosong
         if end < len(lines):
             for look_ahead in range(1, 11):
                 candidate = end + look_ahead
@@ -75,7 +60,7 @@ def _chunk_file(file_path: Path, repo_root: Path) -> List[Dict]:
                     break
 
         chunk_lines = lines[start:end]
-        # Bug 2: Prefix with file path for embedding context
+        # Tambahkan prefix path file untuk konteks embedding
         text = f"File: {rel_path}\n" + "\n".join(chunk_lines)
 
         if len(text.strip()) < MIN_CHUNK_LENGTH:
@@ -95,7 +80,7 @@ def _chunk_file(file_path: Path, repo_root: Path) -> List[Dict]:
 
 
 def _iter_chunks(repo_root: Path) -> Generator[Dict, None, None]:
-    """Bug K: Yield chunks file-by-file instead of accumulating all in RAM."""
+    """Kumpulkan chunk perlahan tanpa memakan RAM"""
     for src_file in sorted(repo_root.rglob("*")):
         if src_file.suffix.lower() not in SUPPORTED_EXTENSIONS:
             continue
@@ -106,21 +91,19 @@ def _iter_chunks(repo_root: Path) -> Generator[Dict, None, None]:
 
 
 def build_vectors(repo_root: Path, lancedb_dir: str, progress_callback=None) -> int:
-    """Chunk all supported source files, embed them, and store in LanceDB.
+    """Potong kode, gabungkan, dan simpan"""
 
-    Returns the number of chunks created.
-    """
     model = SentenceTransformer(EMBED_MODEL)
 
-    # Bug K: Collect chunks via generator (still materialised for embedding,
-    # but the generator avoids duplicate copies during iteration)
+    # Kumpulkan chunk secara berulang
+    # Mencegah duplikasi saat iterasi
     all_chunks: List[Dict] = list(_iter_chunks(repo_root))
 
-    # Bug J: Only one lancedb.connect() call
+    # Gunakan koneksi tunggal
     db = lancedb.connect(lancedb_dir)
 
     if not all_chunks:
-        # Create empty table to prevent Missing Table errors
+        # Mencegah error kehilangan tabel
         db.create_table("code_chunks", schema=SCHEMA, mode="overwrite")
         return 0
 
@@ -130,7 +113,7 @@ def build_vectors(repo_root: Path, lancedb_dir: str, progress_callback=None) -> 
     if progress_callback:
         progress_callback(0, total_chunks)
 
-    # Bug K: encode in batches of 64
+    # Proses koding dalam batch kecil
     batch_size = 64
     total_batches = math.ceil(total_chunks / batch_size)
 
@@ -146,7 +129,7 @@ def build_vectors(repo_root: Path, lancedb_dir: str, progress_callback=None) -> 
     for i, chunk in enumerate(all_chunks):
         chunk["vector"] = vectors[i].tolist()
 
-    # Write to LanceDB (overwrite for clean re-index)
+    # Timpa data ke LanceDB
     db.create_table("code_chunks", data=all_chunks, schema=SCHEMA, mode="overwrite")
 
     return len(all_chunks)

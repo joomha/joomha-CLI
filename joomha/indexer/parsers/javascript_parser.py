@@ -1,4 +1,4 @@
-"""JavaScript parser — extracts functions, classes, and import edges using Tree-sitter."""
+"""[PENANDA]"""
 
 from pathlib import Path
 from typing import List, Dict
@@ -12,7 +12,7 @@ JS_LANGUAGE = Language(tsjs.language())
 
 
 class JavaScriptParser(BaseParser):
-    """Parse JavaScript source files (.js, .jsx) via Tree-sitter."""
+    """Parsing file JavaScript dengan Tree-sitter"""
 
     def __init__(self):
         self._parser = Parser(JS_LANGUAGE)
@@ -24,14 +24,14 @@ class JavaScriptParser(BaseParser):
         return "javascript"
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Fungsi Internal Pembantu
     # ------------------------------------------------------------------
 
     @staticmethod
     def _resolve_import(raw_path: str, source_file: Path, repo_root: Path):
-        """Try to resolve a relative import string to a repo-relative path."""
+        """Ubah path relatif menjadi statis"""
         if not raw_path.startswith("."):
-            return None  # skip bare specifiers (npm packages)
+            return None  # Lewati library eksternal (npm)
 
         source_dir = source_file.parent
         for ext in ("", ".js", ".jsx", ".mjs", ".ts", ".tsx", "/index.js", "/index.ts", "/index.tsx"):
@@ -44,13 +44,13 @@ class JavaScriptParser(BaseParser):
         return None
 
     def _walk(self, node):
-        """Depth-first generator over all Tree-sitter nodes."""
+        """Generator Depth-first untuk node Tree-sitter"""
         yield node
         for child in node.children:
             yield from self._walk(child)
 
     # ------------------------------------------------------------------
-    # Interface implementation
+    # Implementasi Antarmuka
     # ------------------------------------------------------------------
 
     def parse_file(
@@ -69,7 +69,7 @@ class JavaScriptParser(BaseParser):
         tree = self._parser.parse(source_bytes)
         line_count = len(source_text.splitlines())
 
-        # Module-level node
+        # Node level modul
         nodes.append({
             "file_path":  rel_path,
             "node_type":  "module",

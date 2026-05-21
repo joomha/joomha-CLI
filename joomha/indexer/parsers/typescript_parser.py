@@ -1,4 +1,4 @@
-"""TypeScript parser — extracts functions, classes, interfaces, and import edges using Tree-sitter."""
+"""[PENANDA]"""
 
 from pathlib import Path
 from typing import List, Dict
@@ -13,7 +13,7 @@ TSX_LANGUAGE = Language(tsts.language_tsx())
 
 
 class TypeScriptParser(BaseParser):
-    """Parse TypeScript source files (.ts, .tsx) via Tree-sitter."""
+    """Parser kode TypeScript dengan Tree-sitter"""
 
     def __init__(self):
         self._parser_ts = Parser(TS_LANGUAGE)
@@ -26,20 +26,20 @@ class TypeScriptParser(BaseParser):
         return "typescript"
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Fungsi Internal Pembantu
     # ------------------------------------------------------------------
 
     def _get_parser(self, file_path: Path) -> Parser:
-        """Pick the correct sub-parser based on extension."""
+        """Pilih sub-parser yang tepat"""
         if file_path.suffix == ".tsx":
             return self._parser_tsx
         return self._parser_ts
 
     @staticmethod
     def _resolve_import(raw_path: str, source_file: Path, repo_root: Path):
-        """Try to resolve a relative TS import to a repo-relative path."""
+        """Selesaikan import relatif TypeScript"""
         if not raw_path.startswith("."):
-            return None  # skip bare specifiers (npm packages)
+            return None  # Lewati library eksternal (npm)
 
         source_dir = source_file.parent
         for ext in ("", ".ts", ".tsx", ".js", "/index.ts", "/index.tsx"):
@@ -52,13 +52,13 @@ class TypeScriptParser(BaseParser):
         return None
 
     def _walk(self, node):
-        """Depth-first generator over all Tree-sitter nodes."""
+        """Generator Depth-first untuk node Tree-sitter"""
         yield node
         for child in node.children:
             yield from self._walk(child)
 
     # ------------------------------------------------------------------
-    # Interface implementation
+    # Implementasi Antarmuka
     # ------------------------------------------------------------------
 
     def parse_file(
@@ -78,7 +78,7 @@ class TypeScriptParser(BaseParser):
         tree = parser.parse(source_bytes)
         line_count = len(source_text.splitlines())
 
-        # Module-level node
+        # Node level modul
         nodes.append({
             "file_path":  rel_path,
             "node_type":  "module",

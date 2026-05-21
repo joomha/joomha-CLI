@@ -1,7 +1,5 @@
-"""Git history analyser — commits, co-changes, hotspots, and ownership.
+"""[PENANDA]"""
 
-Bug 4 fix: no longer hardcoded to .py — now tracks all SUPPORTED_EXTENSIONS.
-"""
 
 import sqlite3
 from itertools import combinations
@@ -13,10 +11,8 @@ from joomha.indexer.ast_parser import SUPPORTED_EXTENSIONS
 
 
 def analyze_git(repo_path: Path, conn: sqlite3.Connection, progress_callback=None) -> int:
-    """Analyse the full git history and populate SQLite tables.
+    """Analisis riwayat Git dan simpan ke database"""
 
-    Returns the number of commits processed.
-    """
     try:
         repo = git.Repo(str(repo_path))
     except git.InvalidGitRepositoryError:
@@ -42,7 +38,7 @@ def analyze_git(repo_path: Path, conn: sqlite3.Connection, progress_callback=Non
             ),
         )
 
-        # Bug 4: Collect changed files for ALL supported extensions (not just .py)
+        # Kumpulkan semua file yang berubah
         changed_files: list[str] = []
         try:
             if commit.parents:
@@ -60,10 +56,10 @@ def analyze_git(repo_path: Path, conn: sqlite3.Connection, progress_callback=Non
                         (commit.hexsha, fp),
                     )
         except Exception:
-            # Skip problematic commits (e.g. binary-only)
+            # Lewati commit bermasalah
             continue
 
-        # Co-changes: every *sorted* pair of files in this commit
+        # Hitung perubahan ganda secara historis
         for a, b in combinations(sorted(set(changed_files)), 2):
             cursor.execute(
                 "INSERT INTO co_changes (file_a, file_b, score) VALUES (?, ?, 1) "
@@ -76,25 +72,16 @@ def analyze_git(repo_path: Path, conn: sqlite3.Connection, progress_callback=Non
             progress_callback(commit_count, total)
 
     # ---------------------------------------------------------------------------
-    # Aggregate tables
+    # Gabungkan tabel
     # ---------------------------------------------------------------------------
 
-    # Hotspots: how often each file was changed
-    cursor.execute("""
-        INSERT OR REPLACE INTO hotspots (file_path, change_count)
-        SELECT file_path, COUNT(*) AS cnt
-        FROM file_changes
-        GROUP BY file_path
-    """)
+    # Hotspots: seberapa sering file diubah
+    cursor.execute("""Update hotspot file"""
+)
 
-    # Ownership: per-file author contribution
-    cursor.execute("""
-        INSERT OR REPLACE INTO ownership (file_path, author, changes)
-        SELECT fc.file_path, c.author, COUNT(*) AS cnt
-        FROM file_changes fc
-        JOIN commits c ON fc.commit_hash = c.hash
-        GROUP BY fc.file_path, c.author
-    """)
+    # Kepemilikan: kontribusi per file
+    cursor.execute("""Mencatat kepemilikan author file"""
+)
 
     conn.commit()
     return commit_count
