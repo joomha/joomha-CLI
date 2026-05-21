@@ -76,12 +76,21 @@ def analyze_git(repo_path: Path, conn: sqlite3.Connection, progress_callback=Non
     # ---------------------------------------------------------------------------
 
     # Hotspots: seberapa sering file diubah
-    cursor.execute("""Update hotspot file"""
-)
+    cursor.execute("""
+        INSERT OR REPLACE INTO hotspots (file_path, change_count)
+        SELECT file_path, COUNT(*) AS cnt
+        FROM file_changes
+        GROUP BY file_path
+    """)
 
     # Kepemilikan: kontribusi per file
-    cursor.execute("""Mencatat kepemilikan author file"""
-)
+    cursor.execute("""
+        INSERT OR REPLACE INTO ownership (file_path, author, changes)
+        SELECT fc.file_path, c.author, COUNT(*) AS cnt
+        FROM file_changes fc
+        JOIN commits c ON fc.commit_hash = c.hash
+        GROUP BY fc.file_path, c.author
+    """)
 
     conn.commit()
     return commit_count
