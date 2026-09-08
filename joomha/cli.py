@@ -2,6 +2,13 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+import os
+import logging
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
+logging.getLogger("transformers").setLevel(logging.ERROR)
+
 from pathlib import Path
 from typing import Optional
 
@@ -23,6 +30,7 @@ from joomha.config import (
     MODEL_REGISTRY,
     OPEN_MODEL_PROVIDERS,
     ensure_joomha_gitignore,
+    get_hf_token,
 )
 from joomha.ui.display import (
     show_banner,
@@ -298,13 +306,13 @@ def _handle_slash_command(user_input: str, orchestrator) -> Optional[bool]:
 @config_app.command("set")
 def config_set(
     provider: str = typer.Argument(
-        ..., help="Provider: gemini, openai, anthropic, deepseek, openrouter, custom"
+        ..., help="Provider: gemini, openai, anthropic, deepseek, openrouter, custom, hf_token"
     ),
     key: str = typer.Argument(..., help="API key"),
 ) -> None:
     """Atur API key provider"""
-    if provider not in PROVIDER_ENV_KEYS:
-        valid = ", ".join(PROVIDER_ENV_KEYS.keys())
+    if provider not in PROVIDER_ENV_KEYS and provider != "hf_token":
+        valid = ", ".join(list(PROVIDER_ENV_KEYS.keys()) + ["hf_token"])
         show_error(
             f"Provider tidak valid: {provider}. "
             f"Gunakan: {valid}"
@@ -394,6 +402,11 @@ def config_show() -> None:
         active_marker = "[bold green]● AKTIF[/bold green]" if provider == active else ""
         table.add_row(provider, key_status, model, active_marker)
 
+    # Tambahkan baris untuk HF Token
+    hf_token_val = get_hf_token()
+    hf_status = "[green]✓ tersedia[/green]" if hf_token_val else "[dim]✗ belum diatur[/dim]"
+    table.add_row("hf_token", hf_status, "—", "")
+
     display_console.print(table)
 
     # Tampilkan URL dasar custom jika ada
@@ -463,6 +476,10 @@ def main(
 
     # [INFO] ── Startup ───────────────────────────────────────────────────────
     show_banner()
+    
+    hf_token = get_hf_token()
+    if hf_token:
+        os.environ["HF_TOKEN"] = hf_token
 
     joomha_dir, db_path, lancedb_dir, history_path = _get_paths(repo_root)
 
@@ -494,14 +511,15 @@ def main(
             show_info("Index ditemukan. Gunakan --reindex untuk memperbarui.")
 
     # [INFO] ── Init orchestrator ─────────────────────────────────────────────
-    from joomha.orchestrator import Orchestrator
 
     try:
-        with display_console.status("[cyan]Menghidupkan mesin AI (Loading Model)..."):
-            orchestrator = Orchestrator(
-                str(repo_root), db_path, lancedb_dir,
-                provider=active_prov, model=model,
-            )
+        display_console.print("[cyan]Menghidupkan mesin AI (Memuat model dari disk/unduhan, harap tunggu)...[/cyan]")
+        from joomha.orchestrator import Orchestrator
+
+        orchestrator = Orchestrator(
+            str(repo_root), db_path, lancedb_dir,
+            provider=active_prov, model=model,
+        )
     except ValueError as e:
         show_error(str(e))
         raise typer.Exit(1)

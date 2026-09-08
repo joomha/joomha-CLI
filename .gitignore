@@ -29,11 +29,42 @@ build/
 # OS Files
 .DS_Store
 Thumbs.db
+/joomhalab
 
 # Archives
 *.zip
+*.rar
 
 # Abaikan semua file markdown diskusi kecuali dokumentasi inti
 *.md
 !README.md
 !arsitektur_sistem.md
+
+# --- File Skripsi & Eksperimen ---
+studi_ablasi/
+tests_dan_pengujian/
+uji_elysia/
+uji_fastapi/
+uji_flask/
+
+# Abaikan hasil & data evaluasi
+*.csv
+
+# Abaikan kredensial & API keys
+*key*.txt
+token.json
+client_secret_*.json
+jumhadi-*.json
+
+# Abaikan file temp / web
+*.mhtml
+form_entries.txt
+
+# Abaikan script testing & automasi skripsi
+cek_api.py
+fix_csv.py
+forms_mcp.py
+generate_eval_form.py
+inject_form.py
+test_forms.py
+remove_copilot.py

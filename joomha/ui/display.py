@@ -101,6 +101,12 @@ def show_help() -> None:
     table.add_row("/q, /quit", "Keluar dari Joomha")
 
     console.print(table)
+    
+    console.print("\n[dim]Catatan: Untuk mengatur API key, gunakan perintah berikut di luar sesi Joomha (di terminal sistem):[/dim]")
+    console.print("[dim]- joomha config set <provider> <api_key>  : Menyimpan API Key (gemini, openai, dsb)[/dim]")
+    console.print("[dim]- joomha config set hf_token <token>      : Menyimpan HuggingFace Token[/dim]")
+    console.print("[dim]- joomha config use <provider>            : Mengatur provider default[/dim]")
+    console.print("[dim]- joomha config show                      : Melihat daftar konfigurasi[/dim]")
 
 
 def show_mode_change(mode: str) -> None:

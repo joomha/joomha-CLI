@@ -161,6 +161,20 @@ def get_api_key(provider: str) -> Optional[str]:
             return stored
     return None
 
+def get_hf_token() -> Optional[str]:
+    """Ambil HuggingFace Token dari environment atau config"""
+    val = os.environ.get("HF_TOKEN")
+    if val:
+        return val
+    config = _load_config()
+    stored = config.get("api_keys", {}).get("hf_token")
+    if stored:
+        try:
+            return _deobfuscate(stored)
+        except Exception:
+            return stored
+    return None
+
 
 def set_api_key(provider: str, key: str) -> None:
     """Simpan Kunci API"""
